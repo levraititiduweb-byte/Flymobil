@@ -1,4 +1,4 @@
--- Auto Eat Blobs (Safe Mode) by Bread
+-- Auto Eat Smaller Players (Debug Edition) by Bread
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -14,7 +14,7 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 240, 0, 140)
+MainFrame.Size = UDim2.new(0, 250, 0, 180)
 MainFrame.Position = UDim2.new(0, 20, 0, 60)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 0
@@ -69,36 +69,51 @@ ToggleCorner.CornerRadius = UDim.new(0, 6)
 ToggleCorner.Parent = ToggleBtn
 
 local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Size = UDim2.new(1, -20, 0, 30)
-StatusLabel.Position = UDim2.new(0, 10, 0, 90)
+StatusLabel.Size = UDim2.new(1, -20, 0, 45)
+StatusLabel.Position = UDim2.new(0, 10, 0, 85)
 StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Status: En attente..."
+StatusLabel.Text = "Status: En attente...\nMa Taille: ? | Cible: ?"
 StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 StatusLabel.TextSize = 13
 StatusLabel.Font = Enum.Font.Gotham
 StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatusLabel.TextWrapped = true
 StatusLabel.Parent = MainFrame
 
 -- ===== LOGIQUE DU SCRIPT =====
 
--- Fonction pour trouver la taille d'un personnage/objet
+-- Fonction améliorée pour trouver la taille (Mass, Size, Level, Scale)
 local function getEntitySize(character)
     if not character then return 0 end
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return 0 end
-
-    -- 1. On cherche une valeur "Mass", "Size", "Level" ou "Score" dans le personnage
-    for _, child in pairs(character:GetDescendants()) do
-        if child:IsA("NumberValue") or child:IsA("IntValue") then
-            local name = child.Name:lower()
-            if name:find("mass") or name:find("size") or name:find("score") or name:find("level") then
-                return child.Value
+    
+    -- 1. Chercher dans les Leaderstats (Très courant)
+    local leaderstats = character:FindFirstChild("leaderstats")
+    if leaderstats then
+        for _, stat in pairs(leaderstats:GetChildren()) do
+            local name = stat.Name:lower()
+            if name:find("size") or name:find("mass") or name:find("level") or name:find("score") or name:find("weight") then
+                return tonumber(stat.Value) or 0
             end
         end
     end
+
+    -- 2. Chercher les BodyScales (Taille du personnage Roblox)
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        local scale = 1
+        if humanoid:FindFirstChild("BodyDepthScale") then scale *= humanoid.BodyDepthScale.Value end
+        if humanoid:FindFirstChild("BodyWidthScale") then scale *= humanoid.BodyWidthScale.Value end
+        if humanoid:FindFirstChild("BodyHeightScale") then scale *= humanoid.BodyHeightScale.Value end
+        if scale ~= 1 then return scale * 10 end -- Multiplié pour avoir un chiffre plus grand
+    end
+
+    -- 3. En dernier recours, la taille physique
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        return hrp.Size.X * hrp.Size.Y * hrp.Size.Z
+    end
     
-    -- 2. Si on ne trouve pas, on utilise la taille physique du personnage
-    return hrp.Size.X * hrp.Size.Y * hrp.Size.Z
+    return 0
 end
 
 local function startFarm()
@@ -114,56 +129,31 @@ local function startFarm()
 
         local mySize = getEntitySize(myChar)
         local bestTarget = nil
-        local minDistance = math.huge
 
-        -- On scanne tous les joueurs du serveur
+        -- On scanne UNIQUEMENT les JOUEURS (pas les blobs au sol pour éviter le TP en l'air)
         for _, player in pairs(Players:GetPlayers()) do
             if player ~= LocalPlayer and player.Character then
                 local targetHRP = player.Character:FindFirstChild("HumanoidRootPart")
                 if targetHRP then
                     local targetSize = getEntitySize(player.Character)
                     
-                    -- LOGIQUE : On cible uniquement si le joueur est plus petit que nous
-                    if targetSize < mySize * 0.9 then -- 0.9 = marge de sécurité de 10%
-                        local distance = (myHRP.Position - targetHRP.Position).Magnitude
-                        if distance < minDistance then
-                            minDistance = distance
-                            bestTarget = targetHRP
-                        end
+                    -- Si le joueur est plus petit (avec une petite marge)
+                    if targetSize > 0 and targetSize < (mySize * 0.95) then
+                        bestTarget = targetHRP
+                        StatusLabel.Text = "Status: TP sur " .. player.Name .. "\nMa Taille: " .. math.floor(mySize) .. " | Cible: " .. math.floor(targetSize)
+                        break -- On prend le premier joueur plus petit trouvé
                     end
                 end
             end
         end
 
-        -- Si on n'a pas trouvé de joueur plus petit, on cherche les "Blobs" (Boules de nourriture)
-        if not bestTarget then
-            for _, obj in pairs(workspace:GetChildren()) do
-                if obj:IsA("Part") or obj:IsA("Model") then
-                    local targetHRP = obj:FindFirstChild("HumanoidRootPart") or (obj:IsA("Part") and obj) or obj:FindFirstChildWhichIsA("BasePart")
-                    if targetHRP then
-                        local targetSize = getEntitySize(obj)
-                        -- Les blobs sont généralement fixes, on utilise une petite taille par défaut si introuvable
-                        if targetSize == 0 then targetSize = 1 end 
-                        
-                        if targetSize < mySize * 0.9 then
-                            local distance = (myHRP.Position - targetHRP.Position).Magnitude
-                            if distance < minDistance then
-                                minDistance = distance
-                                bestTarget = targetHRP
-                            end
-                        end
-                    end
-                end
-            end
-        end
-
-        -- Si on a trouvé une cible plus petite, on s'y téléporte
+        -- Si on a trouvé un joueur plus petit, on se TP DIRECTEMENT DANS LUI
         if bestTarget then
-            StatusLabel.Text = "Status: Mange une cible..."
-            myHRP.CFrame = CFrame.new(bestTarget.Position)
-            task.wait(0.1) -- Petit délai pour éviter le kick anti-tp
+            myHRP.CFrame = bestTarget.CFrame
+            -- On force la vélocité à zéro pour ne pas glisser
+            myHRP.Velocity = Vector3.new(0,0,0) 
         else
-            StatusLabel.Text = "Status: Aucune cible plus petite trouvée."
+            StatusLabel.Text = "Status: Aucun joueur plus petit trouvé.\nMa Taille: " .. math.floor(mySize)
         end
     end)
 end
