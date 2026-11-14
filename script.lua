@@ -1,4 +1,4 @@
--- Fly GUI Menu Mobile (Utilise le Joystick Natif) by Bread
+-- Fly GUI Menu Mobile (Camera Fly & Stable Button) by Bread
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -61,6 +61,7 @@ local success, err = pcall(function()
     CloseCorner.CornerRadius = UDim.new(0, 6)
     CloseCorner.Parent = CloseBtn
 
+    -- BOUTON FLY STABLE (Pas de glissement accidentel)
     local ToggleBtn = Instance.new("TextButton")
     ToggleBtn.Size = UDim2.new(1, -20, 0, 42)
     ToggleBtn.Position = UDim2.new(0, 10, 0, 38)
@@ -70,6 +71,7 @@ local success, err = pcall(function()
     ToggleBtn.TextSize = 16
     ToggleBtn.Font = Enum.Font.GothamBold
     ToggleBtn.BorderSizePixel = 0
+    ToggleBtn.AutoButtonColor = false -- Empêche le changement de couleur au clic
     ToggleBtn.Parent = Main
     
     local ToggleCorner = Instance.new("UICorner")
@@ -99,40 +101,7 @@ local success, err = pcall(function()
     SliderCorner.CornerRadius = UDim.new(0, 4)
     SliderCorner.Parent = SpeedSlider
 
-    -- ===== BOUTONS MONTER/DESCENDRE (A droite) =====
-    local ControlPanel = Instance.new("Frame")
-    ControlPanel.Name = "ControlPanel"
-    ControlPanel.Size = UDim2.new(0, 60, 0, 130)
-    ControlPanel.Position = UDim2.new(1, -80, 1, -150) -- En bas à droite
-    ControlPanel.BackgroundTransparency = 1
-    ControlPanel.Visible = false
-    ControlPanel.Parent = ScreenGui
-
-    local function makeBtn(name, text, pos)
-        local b = Instance.new("TextButton")
-        b.Name = name
-        b.Size = UDim2.new(1, 0, 0, 60)
-        b.Position = pos
-        b.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-        b.BackgroundTransparency = 0.2
-        b.Text = text
-        b.TextColor3 = Color3.fromRGB(255, 255, 255)
-        b.TextSize = 24
-        b.Font = Enum.Font.GothamBold
-        b.BorderSizePixel = 0
-        b.Parent = ControlPanel
-        local c = Instance.new("UICorner")
-        c.CornerRadius = UDim.new(0, 8)
-        c.Parent = b
-        return b
-    end
-
-    local btnAscend = makeBtn("Ascend", "+", UDim2.new(0, 0, 0, 0))
-    local btnDescend = makeBtn("Descend", "-", UDim2.new(0, 0, 0, 70))
-
-    -- ===== LOGIQUE FLY =====
-    local verticalMove = 0
-
+    -- ===== LOGIQUE FLY (100% CAMERA) =====
     local function stopFly()
         flying = false
         if flyConnection then flyConnection:Disconnect() flyConnection = nil end
@@ -149,7 +118,6 @@ local success, err = pcall(function()
         end
         ToggleBtn.Text = "Fly: OFF"
         ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-        ControlPanel.Visible = false
     end
 
     local function startFly()
@@ -162,7 +130,6 @@ local success, err = pcall(function()
         flying = true
         ToggleBtn.Text = "Fly: ON"
         ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-        ControlPanel.Visible = true
 
         bodyVelocity = Instance.new("BodyVelocity")
         bodyVelocity.Name = "BreadFlyBV"
@@ -183,62 +150,48 @@ local success, err = pcall(function()
             local root = c:FindFirstChild("HumanoidRootPart")
             if not root or not bodyVelocity or not bodyGyro then return end
 
-            -- Astuce : Force le jeu à croire qu'on est au sol pour que le joystick natif marche
+            -- Force le jeu à croire qu'on est au sol pour le joystick
             humanoid:ChangeState(Enum.HumanoidStateType.Running)
 
-            -- Récupère la direction du joystick natif (ou des touches ZQSD/WASD sur PC)
-            local moveDir = humanoid.MoveDirection
-            
+            local cam = workspace.CurrentCamera
+            local moveDir = humanoid.MoveDirection -- Direction du joystick natif
             local finalMove = Vector3.zero
-            
-            -- Si on bouge avec le joystick
-            if moveDir.Magnitude > 0 then
-                finalMove = moveDir * flySpeed
-            end
 
-            -- Si on utilise les boutons + ou -
-            if verticalMove ~= 0 then
-                finalMove = finalMove + Vector3.new(0, verticalMove * flySpeed, 0)
+            -- Si on pousse le joystick, on vole dans la direction de la CAMERA
+            if moveDir.Magnitude > 0 then
+                finalMove = cam.CFrame.LookVector * flySpeed
             end
 
             bodyVelocity.Velocity = finalMove
-            bodyGyro.CFrame = workspace.CurrentCamera.CFrame -- La caméra reste droite
+            bodyGyro.CFrame = cam.CFrame -- Le personnage suit la caméra
         end)
     end
 
-    -- Boutons + et -
-    local function bindAltitude(button, val)
-        button.InputBegan:Connect(function(input) 
-            if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then 
-                verticalMove = val 
-            end 
-        end)
-        button.InputEnded:Connect(function(input) 
-            if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then 
-                verticalMove = 0 
-            end 
-        end)
-    end
-    bindAltitude(btnAscend, 1)
-    bindAltitude(btnDescend, -1)
+    -- ===== GESTION DU BOUTON ON/OFF SÉCURISÉ =====
+    local touchStartPos = nil
 
-    -- Bouton Fly ON/OFF
-    ToggleBtn.MouseButton1Click:Connect(function() 
-        if flying then stopFly() else startFly() end 
-    end)
-    ToggleBtn.InputBegan:Connect(function(input) 
-        if input.UserInputType == Enum.UserInputType.Touch then 
-            if flying then stopFly() else startFly() end 
-        end 
+    ToggleBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            touchStartPos = input.Position
+        end
     end)
 
-    -- Bouton Fermer
+    ToggleBtn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if touchStartPos then
+                -- Vérifie que le doigt n'a pas trop glissé (tolérance de 15 pixels)
+                local dist = (input.Position - touchStartPos).Magnitude
+                if dist < 15 then
+                    if flying then stopFly() else startFly() end
+                end
+                touchStartPos = nil
+            end
+        end
+    end)
+
     CloseBtn.MouseButton1Click:Connect(function() stopFly() ScreenGui:Destroy() end)
-    CloseBtn.InputBegan:Connect(function(input) 
-        if input.UserInputType == Enum.UserInputType.Touch then stopFly() ScreenGui:Destroy() end 
-    end)
 
-    -- Slider Vitesse
+    -- ===== SLIDER VITESSE =====
     local dragging = false
     SpeedSlider.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true end end)
     UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
@@ -254,7 +207,7 @@ local success, err = pcall(function()
 end)
 
 if success then
-    game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Bread", Text = "Fly (Joystick Natif) charge !"})
+    game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Bread", Text = "Fly Camera charge !"})
 else
     game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Bread - ERREUR", Text = tostring(err)})
 end
