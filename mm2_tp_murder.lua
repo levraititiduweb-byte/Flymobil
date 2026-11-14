@@ -1,7 +1,8 @@
--- MM2 TP All to Murderer (Freeze Edition) by Bread
+-- MM2 TP All to Me + Force Murderer by Bread
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
 local TPActive = false
@@ -14,7 +15,7 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 230, 0, 180)
+MainFrame.Size = UDim2.new(0, 240, 0, 250)
 MainFrame.Position = UDim2.new(0, 20, 0, 60)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 0
@@ -30,7 +31,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -40, 0, 30)
 Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "MM2 TP to Murderer"
+Title.Text = "Bread MM2 Menu"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 16
 Title.Font = Enum.Font.GothamBold
@@ -52,11 +53,12 @@ local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = UDim.new(0, 6)
 CloseCorner.Parent = CloseBtn
 
+-- Bouton TP sur MOI
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(1, -20, 0, 42)
 ToggleBtn.Position = UDim2.new(0, 10, 0, 38)
 ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-ToggleBtn.Text = "Activer TP: OFF"
+ToggleBtn.Text = "TP sur moi: OFF"
 ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleBtn.TextSize = 15
 ToggleBtn.Font = Enum.Font.GothamBold
@@ -68,7 +70,7 @@ local ToggleCorner = Instance.new("UICorner")
 ToggleCorner.CornerRadius = UDim.new(0, 6)
 ToggleCorner.Parent = ToggleBtn
 
--- Option pour freeze les joueurs
+-- Bouton FREEZE
 local FreezeBtn = Instance.new("TextButton")
 FreezeBtn.Size = UDim2.new(1, -20, 0, 35)
 FreezeBtn.Position = UDim2.new(0, 10, 0, 85)
@@ -85,11 +87,28 @@ local FreezeCorner = Instance.new("UICorner")
 FreezeCorner.CornerRadius = UDim.new(0, 6)
 FreezeCorner.Parent = FreezeBtn
 
+-- Bouton FORCE MURDERER
+local MurderBtn = Instance.new("TextButton")
+MurderBtn.Size = UDim2.new(1, -20, 0, 35)
+MurderBtn.Position = UDim2.new(0, 10, 0, 125)
+MurderBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+MurderBtn.Text = "Devenir Murderer"
+MurderBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MurderBtn.TextSize = 14
+MurderBtn.Font = Enum.Font.GothamBold
+MurderBtn.BorderSizePixel = 0
+MurderBtn.AutoButtonColor = false
+MurderBtn.Parent = MainFrame
+
+local MurderCorner = Instance.new("UICorner")
+MurderCorner.CornerRadius = UDim.new(0, 6)
+MurderCorner.Parent = MurderBtn
+
 local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Size = UDim2.new(1, -20, 0, 40)
-StatusLabel.Position = UDim2.new(0, 10, 0, 125)
+StatusLabel.Position = UDim2.new(0, 10, 0, 165)
 StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Status: En attente..."
+StatusLabel.Text = "Status: Prêt."
 StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 StatusLabel.TextSize = 13
 StatusLabel.Font = Enum.Font.Gotham
@@ -97,52 +116,29 @@ StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 StatusLabel.TextWrapped = true
 StatusLabel.Parent = MainFrame
 
-local function getMurderer()
-    for _, player in pairs(Players:GetPlayers()) do
-        if player.Character then
-            for _, tool in pairs(player.Character:GetChildren()) do
-                if tool:IsA("Tool") and (tool.Name:lower():find("knife") or tool.Name:lower():find("couteau")) then
-                    return player
-                end
-            end
-        end
-    end
-    for _, player in pairs(Players:GetPlayers()) do
-        if player:GetAttribute("Role") == "Murderer" or player:GetAttribute("IsMurderer") == true then
-            return player
-        end
-    end
-    return nil
-end
+-- ===== LOGIQUE DU SCRIPT =====
 
 local function startTP()
     if TPConnection then return end
-    ToggleBtn.Text = "Activer TP: ON"
+    ToggleBtn.Text = "TP sur moi: ON"
     ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
     
     TPConnection = RunService.Heartbeat:Connect(function()
-        local murderer = getMurderer()
-        if not murderer or not murderer.Character then
-            StatusLabel.Text = "Status: Murderer introuvable."
-            return
-        end
-        
-        local murdererHRP = murderer.Character:FindFirstChild("HumanoidRootPart")
-        if not murdererHRP then return end
-        
-        StatusLabel.Text = "Status: TP vers " .. murderer.Name
+        local myChar = LocalPlayer.Character
+        if not myChar then return end
+        local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+        if not myHRP then return end
         
         for _, player in pairs(Players:GetPlayers()) do
-            if player ~= murderer and player.Character then
+            if player ~= LocalPlayer and player.Character then
                 local targetHRP = player.Character:FindFirstChild("HumanoidRootPart")
-                local targetHumanoid = player.Character:FindFirstChildOfClass("Humanoid")
                 
                 if targetHRP then
-                    -- TP avec un petit décalage
-                    targetHRP.CFrame = murdererHRP.CFrame + Vector3.new(math.random(-2,2), 2, math.random(-2,2))
+                    -- TP du joueur sur TOI (avec un petit décalage)
+                    targetHRP.CFrame = myHRP.CFrame + Vector3.new(math.random(-3,3), 3, math.random(-3,3))
                     
-                    -- Si le freeze est activé, on bloque le joueur sur place
-                    if FreezeActive and targetHumanoid then
+                    -- Si le freeze est activé
+                    if FreezeActive then
                         targetHRP.Anchored = true 
                     end
                 end
@@ -156,7 +152,7 @@ local function stopTP()
         TPConnection:Disconnect()
         TPConnection = nil
     end
-    ToggleBtn.Text = "Activer TP: OFF"
+    ToggleBtn.Text = "TP sur moi: OFF"
     ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     
     -- On enlève le freeze quand on désactive
@@ -167,6 +163,31 @@ local function stopTP()
         end
     end
     StatusLabel.Text = "Status: Désactivé."
+end
+
+-- Fonction pour devenir Murderer (Spoof local)
+local function forceMurderer()
+    local char = LocalPlayer.Character
+    if not char then return end
+    
+    StatusLabel.Text = "Status: Recherche du couteau..."
+    
+    -- On cherche le couteau dans tout le ReplicatedStorage
+    local knife = nil
+    for _, v in pairs(ReplicatedStorage:GetDescendants()) do
+        if v:IsA("Tool") and (v.Name:lower():find("knife") or v.Name:lower():find("couteau")) then
+            knife = v
+            break
+        end
+    end
+    
+    if knife then
+        local clonedKnife = knife:Clone()
+        clonedKnife.Parent = char
+        StatusLabel.Text = "Status: Couteau équipé (Spoof Local) !"
+    else
+        StatusLabel.Text = "Status: Couteau introuvable dans les fichiers."
+    end
 end
 
 -- Gestion des boutons
@@ -206,6 +227,10 @@ bindButton(FreezeBtn, function()
             end
         end
     end
+end)
+
+bindButton(MurderBtn, function()
+    forceMurderer()
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
