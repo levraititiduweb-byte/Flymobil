@@ -1,4 +1,4 @@
--- Visual Robux Spoofer by Bread
+-- Ultimate Visual Robux Spoofer by Bread
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -31,7 +31,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -40, 0, 30)
 Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "Bread Robux Spoofer"
+Title.Text = "Robux Spoofer (Visuel)"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 16
 Title.Font = Enum.Font.GothamBold
@@ -53,7 +53,6 @@ local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = UDim.new(0, 6)
 CloseCorner.Parent = CloseBtn
 
--- Input pour le montant
 local TextBox = Instance.new("TextBox")
 TextBox.Size = UDim2.new(1, -20, 0, 35)
 TextBox.Position = UDim2.new(0, 10, 0, 38)
@@ -61,7 +60,6 @@ TextBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 TextBox.TextSize = 14
 TextBox.Font = Enum.Font.Gotham
-TextBox.PlaceholderText = "Entre le montant (ex: 999999)"
 TextBox.Text = "999,999,999"
 TextBox.Parent = MainFrame
 
@@ -69,7 +67,6 @@ local BoxCorner = Instance.new("UICorner")
 BoxCorner.CornerRadius = UDim.new(0, 6)
 BoxCorner.Parent = TextBox
 
--- Bouton ON/OFF
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(1, -20, 0, 42)
 ToggleBtn.Position = UDim2.new(0, 10, 0, 85)
@@ -89,21 +86,18 @@ ToggleCorner.Parent = ToggleBtn
 -- ===== LOGIQUE DU SCRIPT =====
 
 local function spoofRobux()
+    -- On utilise gethui() pour accéder à l'interface protégée de Roblox
     local coreGui = gethui and gethui() or game:GetService("CoreGui")
     
-    -- On cherche l'interface du Topbar de Roblox
-    for _, gui in pairs(coreGui:GetChildren()) do
-        if gui.Name == "RobloxGui" or gui.Name == "TopbarApp" then
-            for _, desc in pairs(gui:GetDescendants()) do
-                -- On cherche les textes qui ressemblent à des nombres ou qui sont dans la zone du haut
-                if desc:IsA("TextLabel") and desc.AbsolutePosition.Y < 100 then
-                    -- Si le texte actuel est un nombre (ou contient des virgules)
-                    if tonumber(desc.Text:gsub(",", "")) or desc.Text:match("^%d") then
-                        -- Si ce n'est pas le nom du joueur ou autre, on remplace
-                        desc.Text = SpoofAmount
-                        desc.TextColor3 = Color3.fromRGB(0, 255, 100) -- Petite touche de couleur verte fluo
-                    end
-                end
+    -- On scanne TOUT ce qui est dans le CoreGui (Topbar + Fenêtres d'achat)
+    for _, desc in pairs(coreGui:GetDescendants()) do
+        if desc:IsA("TextLabel") then
+            -- Si le texte est un nombre (ex: "0", "150", "3 399")
+            local cleanText = desc.Text:gsub(",", ""):gsub(" ", "")
+            if tonumber(cleanText) then
+                -- On remplace le texte par ton faux montant
+                desc.Text = SpoofAmount
+                desc.TextColor3 = Color3.fromRGB(0, 255, 100) -- Vert fluo pour faire stylé
             end
         end
     end
@@ -114,7 +108,7 @@ local function startSpoof()
     ToggleBtn.Text = "Spoof Robux: ON"
     ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
     
-    -- On boucle toutes les 0.1s pour garder le faux montant affiché (Roblox essaie de le remettre)
+    -- On boucle en permanence pour contrer Roblox qui essaie de remettre le vrai chiffre
     SpoofConnection = RunService.Heartbeat:Connect(function()
         spoofRobux()
     end)
@@ -146,7 +140,6 @@ ToggleBtn.InputEnded:Connect(function(input)
     end
 end)
 
--- Mettre à jour le montant quand on tape dans la case
 TextBox.FocusLost:Connect(function()
     if TextBox.Text ~= "" then
         SpoofAmount = TextBox.Text
