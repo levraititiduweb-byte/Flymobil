@@ -1,4 +1,4 @@
--- MM2 TP All to Me + Force Murderer by Bread
+-- MM2 TP All to Me + True Freeze + Force Murderer by Bread
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -53,7 +53,6 @@ local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = UDim.new(0, 6)
 CloseCorner.Parent = CloseBtn
 
--- Bouton TP sur MOI
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(1, -20, 0, 42)
 ToggleBtn.Position = UDim2.new(0, 10, 0, 38)
@@ -70,7 +69,6 @@ local ToggleCorner = Instance.new("UICorner")
 ToggleCorner.CornerRadius = UDim.new(0, 6)
 ToggleCorner.Parent = ToggleBtn
 
--- Bouton FREEZE
 local FreezeBtn = Instance.new("TextButton")
 FreezeBtn.Size = UDim2.new(1, -20, 0, 35)
 FreezeBtn.Position = UDim2.new(0, 10, 0, 85)
@@ -87,7 +85,6 @@ local FreezeCorner = Instance.new("UICorner")
 FreezeCorner.CornerRadius = UDim.new(0, 6)
 FreezeCorner.Parent = FreezeBtn
 
--- Bouton FORCE MURDERER
 local MurderBtn = Instance.new("TextButton")
 MurderBtn.Size = UDim2.new(1, -20, 0, 35)
 MurderBtn.Position = UDim2.new(0, 10, 0, 125)
@@ -134,12 +131,24 @@ local function startTP()
                 local targetHRP = player.Character:FindFirstChild("HumanoidRootPart")
                 
                 if targetHRP then
-                    -- TP du joueur sur TOI (avec un petit décalage)
+                    -- TP à chaque frame pour contrer le serveur
                     targetHRP.CFrame = myHRP.CFrame + Vector3.new(math.random(-3,3), 3, math.random(-3,3))
                     
-                    -- Si le freeze est activé
+                    -- Si le freeze est activé, on crée une plateforme sous le joueur
                     if FreezeActive then
-                        targetHRP.Anchored = true 
+                        local platform = targetHRP:FindFirstChild("BreadFreezePlatform")
+                        if not platform then
+                            local p = Instance.new("Part")
+                            p.Name = "BreadFreezePlatform"
+                            p.Size = Vector3.new(10, 1, 10)
+                            p.Transparency = 1
+                            p.Anchored = true
+                            p.CanCollide = true
+                            p.CFrame = targetHRP.CFrame - Vector3.new(0, 3.5, 0)
+                            p.Parent = targetHRP
+                        else
+                            platform.CFrame = targetHRP.CFrame - Vector3.new(0, 3.5, 0)
+                        end
                     end
                 end
             end
@@ -155,24 +164,25 @@ local function stopTP()
     ToggleBtn.Text = "TP sur moi: OFF"
     ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     
-    -- On enlève le freeze quand on désactive
+    -- Nettoyage des plateformes
     for _, player in pairs(Players:GetPlayers()) do
         if player.Character then
             local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then hrp.Anchored = false end
+            if hrp then
+                local platform = hrp:FindFirstChild("BreadFreezePlatform")
+                if platform then platform:Destroy() end
+            end
         end
     end
     StatusLabel.Text = "Status: Désactivé."
 end
 
--- Fonction pour devenir Murderer (Spoof local)
 local function forceMurderer()
     local char = LocalPlayer.Character
     if not char then return end
     
     StatusLabel.Text = "Status: Recherche du couteau..."
     
-    -- On cherche le couteau dans tout le ReplicatedStorage
     local knife = nil
     for _, v in pairs(ReplicatedStorage:GetDescendants()) do
         if v:IsA("Tool") and (v.Name:lower():find("knife") or v.Name:lower():find("couteau")) then
@@ -190,7 +200,6 @@ local function forceMurderer()
     end
 end
 
--- Gestion des boutons
 local function bindButton(btn, onPress)
     local touchStartPos = nil
     btn.InputBegan:Connect(function(input)
@@ -223,7 +232,10 @@ bindButton(FreezeBtn, function()
         for _, player in pairs(Players:GetPlayers()) do
             if player.Character then
                 local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-                if hrp then hrp.Anchored = false end
+                if hrp then
+                    local platform = hrp:FindFirstChild("BreadFreezePlatform")
+                    if platform then platform:Destroy() end
+                end
             end
         end
     end
