@@ -1,20 +1,22 @@
--- Auto Eat Smaller Players (Debug Edition) by Bread
+-- God Mode & Speed Boost by Bread
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
-local AutoFarmEnabled = false
-local FarmConnection = nil
+local GodModeEnabled = false
+local SpeedEnabled = false
+local SpeedValue = 100
+local GodConnection = nil
 
 -- Interface
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "BreadBlobFarm"
+ScreenGui.Name = "BreadGodMenu"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 250, 0, 180)
+MainFrame.Size = UDim2.new(0, 250, 0, 200)
 MainFrame.Position = UDim2.new(0, 20, 0, 60)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 0
@@ -30,7 +32,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -40, 0, 30)
 Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "Bread Blob Farmer"
+Title.Text = "Bread God & Speed"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 16
 Title.Font = Enum.Font.GothamBold
@@ -52,140 +54,167 @@ local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = UDim.new(0, 6)
 CloseCorner.Parent = CloseBtn
 
-local ToggleBtn = Instance.new("TextButton")
-ToggleBtn.Size = UDim2.new(1, -20, 0, 42)
-ToggleBtn.Position = UDim2.new(0, 10, 0, 38)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-ToggleBtn.Text = "Auto Farm: OFF"
-ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleBtn.TextSize = 15
-ToggleBtn.Font = Enum.Font.GothamBold
-ToggleBtn.BorderSizePixel = 0
-ToggleBtn.AutoButtonColor = false
-ToggleBtn.Parent = MainFrame
+-- Bouton GodMode
+local GodBtn = Instance.new("TextButton")
+GodBtn.Size = UDim2.new(1, -20, 0, 42)
+GodBtn.Position = UDim2.new(0, 10, 0, 38)
+GodBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+GodBtn.Text = "God Mode: OFF"
+GodBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+GodBtn.TextSize = 15
+GodBtn.Font = Enum.Font.GothamBold
+GodBtn.BorderSizePixel = 0
+GodBtn.AutoButtonColor = false
+GodBtn.Parent = MainFrame
 
-local ToggleCorner = Instance.new("UICorner")
-ToggleCorner.CornerRadius = UDim.new(0, 6)
-ToggleCorner.Parent = ToggleBtn
+local GodCorner = Instance.new("UICorner")
+GodCorner.CornerRadius = UDim.new(0, 6)
+GodCorner.Parent = GodBtn
 
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Size = UDim2.new(1, -20, 0, 45)
-StatusLabel.Position = UDim2.new(0, 10, 0, 85)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Status: En attente...\nMa Taille: ? | Cible: ?"
-StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-StatusLabel.TextSize = 13
-StatusLabel.Font = Enum.Font.Gotham
-StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-StatusLabel.TextWrapped = true
-StatusLabel.Parent = MainFrame
+-- Bouton Speed
+local SpeedBtn = Instance.new("TextButton")
+SpeedBtn.Size = UDim2.new(1, -20, 0, 42)
+SpeedBtn.Position = UDim2.new(0, 10, 0, 88)
+SpeedBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+SpeedBtn.Text = "Speed Boost: OFF"
+SpeedBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedBtn.TextSize = 15
+SpeedBtn.Font = Enum.Font.GothamBold
+SpeedBtn.BorderSizePixel = 0
+SpeedBtn.AutoButtonColor = false
+SpeedBtn.Parent = MainFrame
 
--- ===== LOGIQUE DU SCRIPT =====
+local SpeedCorner = Instance.new("UICorner")
+SpeedCorner.CornerRadius = UDim.new(0, 6)
+SpeedCorner.Parent = SpeedBtn
 
--- Fonction améliorée pour trouver la taille (Mass, Size, Level, Scale)
-local function getEntitySize(character)
-    if not character then return 0 end
+-- Slider Vitesse
+local SpeedLabel = Instance.new("TextLabel")
+SpeedLabel.Size = UDim2.new(1, -20, 0, 20)
+SpeedLabel.Position = UDim2.new(0, 10, 0, 140)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.Text = "Vitesse: " .. SpeedValue
+SpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedLabel.TextSize = 13
+SpeedLabel.Font = Enum.Font.Gotham
+SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+SpeedLabel.Parent = MainFrame
+
+local SpeedSlider = Instance.new("TextButton")
+SpeedSlider.Size = UDim2.new(1, -20, 0, 14)
+SpeedSlider.Position = UDim2.new(0, 10, 0, 165)
+SpeedSlider.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+SpeedSlider.Text = ""
+SpeedSlider.BorderSizePixel = 0
+SpeedSlider.Parent = MainFrame
+
+local SliderCorner = Instance.new("UICorner")
+SliderCorner.CornerRadius = UDim.new(0, 4)
+SliderCorner.Parent = SpeedSlider
+
+-- ===== LOGIQUE GOD MODE =====
+local function applyGodMode()
+    if GodConnection then GodConnection:Disconnect() end
     
-    -- 1. Chercher dans les Leaderstats (Très courant)
-    local leaderstats = character:FindFirstChild("leaderstats")
-    if leaderstats then
-        for _, stat in pairs(leaderstats:GetChildren()) do
-            local name = stat.Name:lower()
-            if name:find("size") or name:find("mass") or name:find("level") or name:find("score") or name:find("weight") then
-                return tonumber(stat.Value) or 0
-            end
-        end
-    end
-
-    -- 2. Chercher les BodyScales (Taille du personnage Roblox)
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        local scale = 1
-        if humanoid:FindFirstChild("BodyDepthScale") then scale *= humanoid.BodyDepthScale.Value end
-        if humanoid:FindFirstChild("BodyWidthScale") then scale *= humanoid.BodyWidthScale.Value end
-        if humanoid:FindFirstChild("BodyHeightScale") then scale *= humanoid.BodyHeightScale.Value end
-        if scale ~= 1 then return scale * 10 end -- Multiplié pour avoir un chiffre plus grand
-    end
-
-    -- 3. En dernier recours, la taille physique
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        return hrp.Size.X * hrp.Size.Y * hrp.Size.Z
-    end
-    
-    return 0
-end
-
-local function startFarm()
-    if FarmConnection then return end
-    ToggleBtn.Text = "Auto Farm: ON"
-    ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-    
-    FarmConnection = RunService.Heartbeat:Connect(function()
-        local myChar = LocalPlayer.Character
-        if not myChar then return end
-        local myHRP = myChar:FindFirstChild("HumanoidRootPart")
-        if not myHRP then return end
-
-        local mySize = getEntitySize(myChar)
-        local bestTarget = nil
-
-        -- On scanne UNIQUEMENT les JOUEURS (pas les blobs au sol pour éviter le TP en l'air)
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                local targetHRP = player.Character:FindFirstChild("HumanoidRootPart")
-                if targetHRP then
-                    local targetSize = getEntitySize(player.Character)
-                    
-                    -- Si le joueur est plus petit (avec une petite marge)
-                    if targetSize > 0 and targetSize < (mySize * 0.95) then
-                        bestTarget = targetHRP
-                        StatusLabel.Text = "Status: TP sur " .. player.Name .. "\nMa Taille: " .. math.floor(mySize) .. " | Cible: " .. math.floor(targetSize)
-                        break -- On prend le premier joueur plus petit trouvé
-                    end
+    if GodModeEnabled then
+        GodConnection = RunService.Heartbeat:Connect(function()
+            local char = LocalPlayer.Character
+            if char then
+                local humanoid = char:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    humanoid.MaxHealth = math.huge
+                    humanoid.Health = math.huge
                 end
             end
-        end
+        end)
+    end
+end
 
-        -- Si on a trouvé un joueur plus petit, on se TP DIRECTEMENT DANS LUI
-        if bestTarget then
-            myHRP.CFrame = bestTarget.CFrame
-            -- On force la vélocité à zéro pour ne pas glisser
-            myHRP.Velocity = Vector3.new(0,0,0) 
-        else
-            StatusLabel.Text = "Status: Aucun joueur plus petit trouvé.\nMa Taille: " .. math.floor(mySize)
+-- ===== LOGIQUE SPEED BOOST =====
+local function applySpeed()
+    local char = LocalPlayer.Character
+    if char then
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            if SpeedEnabled then
+                humanoid.WalkSpeed = SpeedValue
+            else
+                humanoid.WalkSpeed = 16 -- Vitesse par défaut de Roblox
+            end
+        end
+    end
+end
+
+-- ===== GESTION DES BOUTONS =====
+local function bindButton(btn, onPress)
+    local touchStartPos = nil
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            touchStartPos = input.Position
+        end
+    end)
+    btn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if touchStartPos and (input.Position - touchStartPos).Magnitude < 15 then
+                onPress()
+            end
+            touchStartPos = nil
         end
     end)
 end
 
-local function stopFarm()
-    if FarmConnection then
-        FarmConnection:Disconnect()
-        FarmConnection = nil
+bindButton(GodBtn, function()
+    GodModeEnabled = not GodModeEnabled
+    if GodModeEnabled then
+        GodBtn.Text = "God Mode: ON"
+        GodBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+    else
+        GodBtn.Text = "God Mode: OFF"
+        GodBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        local char = LocalPlayer.Character
+        if char then
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if humanoid then humanoid.Health = 100 end
+        end
     end
-    ToggleBtn.Text = "Auto Farm: OFF"
-    ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    StatusLabel.Text = "Status: Désactivé."
-end
-
--- Gestion du bouton
-local touchStartPos = nil
-ToggleBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        touchStartPos = input.Position
-    end
+    applyGodMode()
 end)
 
-ToggleBtn.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        if touchStartPos and (input.Position - touchStartPos).Magnitude < 15 then
-            if FarmConnection then stopFarm() else startFarm() end
-        end
-        touchStartPos = nil
+bindButton(SpeedBtn, function()
+    SpeedEnabled = not SpeedEnabled
+    if SpeedEnabled then
+        SpeedBtn.Text = "Speed Boost: ON"
+        SpeedBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+    else
+        SpeedBtn.Text = "Speed Boost: OFF"
+        SpeedBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     end
+    applySpeed()
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
-    stopFarm()
+    if GodConnection then GodConnection:Disconnect() end
     ScreenGui:Destroy()
 end)
+
+-- Slider Vitesse Drag
+local dragging = false
+SpeedSlider.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true end end)
+UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local relX = math.clamp((input.Position.X - SpeedSlider.AbsolutePosition.X) / SpeedSlider.AbsoluteSize.X, 0, 1)
+        SpeedValue = math.floor(relX * 200) + 16
+        SpeedLabel.Text = "Vitesse: " .. SpeedValue
+        if SpeedEnabled then applySpeed() end
+    end
+end)
+
+-- Réappliquer si on respawn
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    applyGodMode()
+    applySpeed()
+end)
+
+print("[Bread] God Mode & Speed chargé.")
