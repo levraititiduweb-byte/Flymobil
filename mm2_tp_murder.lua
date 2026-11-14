@@ -1,20 +1,20 @@
--- MM2 TP All to Murderer by Bread
+-- MM2 TP All to Murderer (Freeze Edition) by Bread
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
 local TPActive = false
+local FreezeActive = false
 local TPConnection = nil
 
--- Interface GUI
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "BreadMM2TP"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 230, 0, 130)
+MainFrame.Size = UDim2.new(0, 230, 0, 180)
 MainFrame.Position = UDim2.new(0, 20, 0, 60)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 0
@@ -68,25 +68,36 @@ local ToggleCorner = Instance.new("UICorner")
 ToggleCorner.CornerRadius = UDim.new(0, 6)
 ToggleCorner.Parent = ToggleBtn
 
+-- Option pour freeze les joueurs
+local FreezeBtn = Instance.new("TextButton")
+FreezeBtn.Size = UDim2.new(1, -20, 0, 35)
+FreezeBtn.Position = UDim2.new(0, 10, 0, 85)
+FreezeBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+FreezeBtn.Text = "Freeze Joueurs: OFF"
+FreezeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+FreezeBtn.TextSize = 14
+FreezeBtn.Font = Enum.Font.GothamBold
+FreezeBtn.BorderSizePixel = 0
+FreezeBtn.AutoButtonColor = false
+FreezeBtn.Parent = MainFrame
+
+local FreezeCorner = Instance.new("UICorner")
+FreezeCorner.CornerRadius = UDim.new(0, 6)
+FreezeCorner.Parent = FreezeBtn
+
 local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Size = UDim2.new(1, -20, 0, 30)
-StatusLabel.Position = UDim2.new(0, 10, 0, 90)
+StatusLabel.Size = UDim2.new(1, -20, 0, 40)
+StatusLabel.Position = UDim2.new(0, 10, 0, 125)
 StatusLabel.BackgroundTransparency = 1
 StatusLabel.Text = "Status: En attente..."
 StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 StatusLabel.TextSize = 13
 StatusLabel.Font = Enum.Font.Gotham
 StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatusLabel.TextWrapped = true
 StatusLabel.Parent = MainFrame
 
--- ===== LOGIQUE DU SCRIPT =====
-
--- Fonction pour trouver le Murderer
--- Note: MM2 stocke les rôles de différentes manières, on va chercher les indices visuels
 local function getMurderer()
-    local murderer = nil
-    
-    -- Méthode 1 : Chercher un joueur qui a un couteau (outil) dans son personnage
     for _, player in pairs(Players:GetPlayers()) do
         if player.Character then
             for _, tool in pairs(player.Character:GetChildren()) do
@@ -96,15 +107,12 @@ local function getMurderer()
             end
         end
     end
-    
-    -- Méthode 2 : Chercher via les attributs du jeu (si le jeu utilise ce système)
     for _, player in pairs(Players:GetPlayers()) do
         if player:GetAttribute("Role") == "Murderer" or player:GetAttribute("IsMurderer") == true then
             return player
         end
     end
-    
-    return murderer
+    return nil
 end
 
 local function startTP()
@@ -124,13 +132,19 @@ local function startTP()
         
         StatusLabel.Text = "Status: TP vers " .. murderer.Name
         
-        -- Téléporte TOUS les autres joueurs sur le Murderer
         for _, player in pairs(Players:GetPlayers()) do
             if player ~= murderer and player.Character then
                 local targetHRP = player.Character:FindFirstChild("HumanoidRootPart")
+                local targetHumanoid = player.Character:FindFirstChildOfClass("Humanoid")
+                
                 if targetHRP then
-                    -- On TP un peu au-dessus pour éviter que les joueurs ne se superposent
-                    targetHRP.CFrame = murdererHRP.CFrame + Vector3.new(math.random(-3,3), 3, math.random(-3,3))
+                    -- TP avec un petit décalage
+                    targetHRP.CFrame = murdererHRP.CFrame + Vector3.new(math.random(-2,2), 2, math.random(-2,2))
+                    
+                    -- Si le freeze est activé, on bloque le joueur sur place
+                    if FreezeActive and targetHumanoid then
+                        targetHRP.Anchored = true 
+                    end
                 end
             end
         end
@@ -144,30 +158,57 @@ local function stopTP()
     end
     ToggleBtn.Text = "Activer TP: OFF"
     ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    
+    -- On enlève le freeze quand on désactive
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Character then
+            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then hrp.Anchored = false end
+        end
+    end
     StatusLabel.Text = "Status: Désactivé."
 end
 
--- Gestion du bouton ON/OFF
-local touchStartPos = nil
-ToggleBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        touchStartPos = input.Position
-    end
-end)
-
-ToggleBtn.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-        if touchStartPos and (input.Position - touchStartPos).Magnitude < 15 then
-            if TPConnection then stopTP() else startTP() end
+-- Gestion des boutons
+local function bindButton(btn, onPress)
+    local touchStartPos = nil
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            touchStartPos = input.Position
         end
-        touchStartPos = nil
+    end)
+    btn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if touchStartPos and (input.Position - touchStartPos).Magnitude < 15 then
+                onPress()
+            end
+            touchStartPos = nil
+        end
+    end)
+end
+
+bindButton(ToggleBtn, function()
+    if TPConnection then stopTP() else startTP() end
+end)
+
+bindButton(FreezeBtn, function()
+    FreezeActive = not FreezeActive
+    if FreezeActive then
+        FreezeBtn.Text = "Freeze Joueurs: ON"
+        FreezeBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+    else
+        FreezeBtn.Text = "Freeze Joueurs: OFF"
+        FreezeBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        for _, player in pairs(Players:GetPlayers()) do
+            if player.Character then
+                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then hrp.Anchored = false end
+            end
+        end
     end
 end)
 
--- Bouton Fermer
 CloseBtn.MouseButton1Click:Connect(function()
     stopTP()
     ScreenGui:Destroy()
 end)
-
-print("[Bread] MM2 TP Murderer chargé.")
