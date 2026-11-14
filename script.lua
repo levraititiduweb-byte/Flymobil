@@ -1,4 +1,4 @@
--- Fly GUI Menu Mobile (Version Blindée) by Bread
+-- Fly GUI Menu Mobile (Joystick Edition) by Bread
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -14,6 +14,7 @@ local bodyVelocity = nil
 local bodyGyro = nil
 local flySpeed = 50
 local moveVector = Vector3.zero
+local isDraggingJoystick = false
 
 local success, err = pcall(function()
     local ScreenGui = Instance.new("ScreenGui")
@@ -22,6 +23,7 @@ local success, err = pcall(function()
     ScreenGui.IgnoreGuiInset = true
     ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
+    -- ===== MENU PRINCIPAL =====
     local Main = Instance.new("Frame")
     Main.Name = "Main"
     Main.Size = UDim2.new(0, 230, 0, 160)
@@ -100,24 +102,47 @@ local success, err = pcall(function()
     SliderCorner.CornerRadius = UDim.new(0, 4)
     SliderCorner.Parent = SpeedSlider
 
+    -- ===== JOYSTICK + BOUTONS MONTER/DESCENDRE =====
     local ControlPanel = Instance.new("Frame")
     ControlPanel.Name = "ControlPanel"
-    ControlPanel.Size = UDim2.new(0, 160, 0, 160)
-    ControlPanel.Position = UDim2.new(1, -180, 1, -180)
+    ControlPanel.Size = UDim2.new(0, 200, 0, 200)
+    ControlPanel.Position = UDim2.new(0, 20, 1, -220) -- En bas à gauche
     ControlPanel.BackgroundTransparency = 1
     ControlPanel.Visible = false
     ControlPanel.Parent = ScreenGui
 
-    local function makeButton(name, text, pos, size)
+    -- Le fond du joystick
+    local JoystickBase = Instance.new("Frame")
+    JoystickBase.Size = UDim2.new(0, 120, 0, 120)
+    JoystickBase.Position = UDim2.new(0, 0, 0, 40)
+    JoystickBase.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    JoystickBase.BackgroundTransparency = 0.5
+    JoystickBase.Parent = ControlPanel
+    local BaseCorner = Instance.new("UICorner")
+    BaseCorner.CornerRadius = UDim.new(1, 0)
+    BaseCorner.Parent = JoystickBase
+
+    -- Le bouton central du joystick
+    local JoystickKnob = Instance.new("Frame")
+    JoystickKnob.Size = UDim2.new(0, 50, 0, 50)
+    JoystickKnob.Position = UDim2.new(0.5, -25, 0.5, -25)
+    JoystickKnob.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+    JoystickKnob.Parent = JoystickBase
+    local KnobCorner = Instance.new("UICorner")
+    KnobCorner.CornerRadius = UDim.new(1, 0)
+    KnobCorner.Parent = JoystickKnob
+
+    -- Boutons + et - pour l'altitude
+    local function makeBtn(name, text, pos)
         local b = Instance.new("TextButton")
         b.Name = name
-        b.Size = size or UDim2.new(0, 50, 0, 50)
+        b.Size = UDim2.new(0, 50, 0, 50)
         b.Position = pos
         b.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
         b.BackgroundTransparency = 0.2
         b.Text = text
         b.TextColor3 = Color3.fromRGB(255, 255, 255)
-        b.TextSize = 22
+        b.TextSize = 24
         b.Font = Enum.Font.GothamBold
         b.BorderSizePixel = 0
         b.Parent = ControlPanel
@@ -127,13 +152,49 @@ local success, err = pcall(function()
         return b
     end
 
-    local btnUp = makeButton("Up", "▲", UDim2.new(0.5, -25, 0, 0))
-    local btnDown = makeButton("Down", "▼", UDim2.new(0.5, -25, 0, 110))
-    local btnLeft = makeButton("Left", "◀", UDim2.new(0, 0, 0, 55))
-    local btnRight = makeButton("Right", "▶", UDim2.new(1, -50, 0, 55))
-    local btnAscend = makeButton("Ascend", "+", UDim2.new(0, 0, 1, -50), UDim2.new(0, 45, 0, 45))
-    local btnDescend = makeButton("Descend", "-", UDim2.new(0, 50, 1, -50), UDim2.new(0, 45, 0, 45))
+    local btnAscend = makeBtn("Ascend", "+", UDim2.new(1, -50, 0, 0))
+    local btnDescend = makeBtn("Descend", "-", UDim2.new(1, -50, 0, 60))
 
+    -- ===== LOGIQUE DU JOYSTICK =====
+    local joystickInputBegan = false
+    
+    JoystickBase.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            joystickInputBegan = true
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if joystickInputBegan and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
+            local center = JoystickBase.AbsolutePosition + (JoystickBase.AbsoluteSize / 2)
+            local inputPos = Vector2.new(input.Position.X, input.Position.Y)
+            local delta = inputPos - center
+            
+            local maxRadius = JoystickBase.AbsoluteSize.X / 2
+            local magnitude = math.min(delta.Magnitude, maxRadius)
+            
+            if delta.Magnitude > 0 then
+                delta = delta.Unit * magnitude
+            end
+            
+            JoystickKnob.Position = UDim2.new(0.5, delta.X, 0.5, delta.Y)
+            
+            -- Normalisation pour le déplacement (X = Gauche/Droite, Z = Avant/Arrière)
+            local xVal = delta.X / maxRadius
+            local zVal = -delta.Y / maxRadius -- Inversé car Y descend sur l'écran
+            moveVector = Vector3.new(xVal, moveVector.Y, zVal)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            joystickInputBegan = false
+            JoystickKnob.Position = UDim2.new(0.5, -25, 0.5, -25) -- Reset au centre
+            moveVector = Vector3.new(0, moveVector.Y, 0)
+        end
+    end)
+
+    -- ===== LOGIQUE FLY =====
     local function stopFly()
         flying = false
         moveVector = Vector3.zero
@@ -204,27 +265,38 @@ local success, err = pcall(function()
         end)
     end
 
-    local function bindHold(button, onStart, onEnd)
-        button.MouseButton1Down:Connect(onStart)
-        button.MouseButton1Up:Connect(onEnd)
-        button.MouseLeave:Connect(onEnd)
-        button.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.Touch then onStart() end end)
-        button.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.Touch then onEnd() end end)
+    -- Boutons d'altitude (Monter / Descendre)
+    local function bindAltitude(button, val)
+        button.InputBegan:Connect(function(input) 
+            if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then 
+                moveVector = Vector3.new(moveVector.X, val, moveVector.Z) 
+            end 
+        end)
+        button.InputEnded:Connect(function(input) 
+            if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then 
+                moveVector = Vector3.new(moveVector.X, 0, moveVector.Z) 
+            end 
+        end)
     end
+    bindAltitude(btnAscend, 1)
+    bindAltitude(btnDescend, -1)
 
-    bindHold(btnUp, function() moveVector = Vector3.new(moveVector.X, moveVector.Y, 1) end, function() moveVector = Vector3.new(moveVector.X, moveVector.Y, 0) end)
-    bindHold(btnDown, function() moveVector = Vector3.new(moveVector.X, moveVector.Y, -1) end, function() moveVector = Vector3.new(moveVector.X, moveVector.Y, 0) end)
-    bindHold(btnLeft, function() moveVector = Vector3.new(-1, moveVector.Y, moveVector.Z) end, function() moveVector = Vector3.new(0, moveVector.Y, moveVector.Z) end)
-    bindHold(btnRight, function() moveVector = Vector3.new(1, moveVector.Y, moveVector.Z) end, function() moveVector = Vector3.new(0, moveVector.Y, moveVector.Z) end)
-    bindHold(btnAscend, function() moveVector = Vector3.new(moveVector.X, 1, moveVector.Z) end, function() moveVector = Vector3.new(moveVector.X, 0, moveVector.Z) end)
-    bindHold(btnDescend, function() moveVector = Vector3.new(moveVector.X, -1, moveVector.Z) end, function() moveVector = Vector3.new(moveVector.X, 0, moveVector.Z) end)
-
-    ToggleBtn.MouseButton1Click:Connect(function() if flying then stopFly() else startFly() end end)
-    ToggleBtn.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.Touch then if flying then stopFly() else startFly() end end end)
+    -- ===== BOUTON ON/OFF (Simple Clic) =====
+    ToggleBtn.MouseButton1Click:Connect(function() 
+        if flying then stopFly() else startFly() end 
+    end)
+    ToggleBtn.InputBegan:Connect(function(input) 
+        if input.UserInputType == Enum.UserInputType.Touch then 
+            if flying then stopFly() else startFly() end 
+        end 
+    end)
 
     CloseBtn.MouseButton1Click:Connect(function() stopFly() ScreenGui:Destroy() end)
-    CloseBtn.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.Touch then stopFly() ScreenGui:Destroy() end end)
+    CloseBtn.InputBegan:Connect(function(input) 
+        if input.UserInputType == Enum.UserInputType.Touch then stopFly() ScreenGui:Destroy() end 
+    end)
 
+    -- ===== SLIDER VITESSE =====
     local dragging = false
     SpeedSlider.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true end end)
     UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
@@ -240,7 +312,7 @@ local success, err = pcall(function()
 end)
 
 if success then
-    game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Bread", Text = "Menu Fly charge avec succes !"})
+    game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Bread", Text = "Menu Fly (Joystick) charge !"})
 else
     game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Bread - ERREUR", Text = tostring(err)})
 end
