@@ -1,4 +1,4 @@
--- Ultimate Prison Life Hub V3 (Fixed) by Bread
+-- Ultimate Prison Life Hub V4 (100 Studs Limit) by Bread
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Players = game:GetService("Players")
@@ -19,7 +19,8 @@ local _G = {
     FreeCam = false,
     ESP = false,
     Speed = 16,
-    TargetPart = "Head"
+    TargetPart = "Head",
+    MaxDistance = 100 -- Limite de distance (en studs)
 }
 
 -- ===== FONCTIONS DE CIBLAGE =====
@@ -31,17 +32,31 @@ end
 local function getClosestPlayer()
     local closestDist = math.huge
     local closestPlayer = nil
+    local myChar = LocalPlayer.Character
+    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
     
+    if not myHRP then return nil end
+
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(_G.TargetPart) and isEnemy(p) then
             local targetPart = p.Character[_G.TargetPart]
-            local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+            local targetHRP = p.Character:FindFirstChild("HumanoidRootPart")
             
-            if onScreen then
-                local dist = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
-                if dist < closestDist and dist < 300 then
-                    closestDist = dist
-                    closestPlayer = p
+            if targetHRP then
+                -- VÉRIFICATION DE LA DISTANCE (Max 100 studs)
+                local distance3D = (targetHRP.Position - myHRP.Position).Magnitude
+                
+                if distance3D <= _G.MaxDistance then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                    
+                    if onScreen then
+                        local dist2D = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                        -- On cherche la cible la plus proche du curseur
+                        if dist2D < closestDist and dist2D < 300 then
+                            closestDist = dist2D
+                            closestPlayer = p
+                        end
+                    end
                 end
             end
         end
@@ -49,8 +64,7 @@ local function getClosestPlayer()
     return closestPlayer
 end
 
--- ===== LOGIQUE SILENT AIM (Fix pour ne pas casser le pistolet) =====
--- On ne touche plus au Raycast. On hook juste la position de la souris.
+-- ===== LOGIQUE SILENT AIM =====
 local mt = getrawmetatable(game)
 local oldIndex = mt.__index
 setreadonly(mt, false)
@@ -71,7 +85,7 @@ mt.__index = newcclosure(function(self, key)
 end)
 setreadonly(mt, true)
 
--- ===== LOGIQUE AIMBOT (Caméra) =====
+-- ===== LOGIQUE AIMBOT =====
 RunService.RenderStepped:Connect(function()
     if _G.Aimbot then
         local target = getClosestPlayer()
@@ -82,7 +96,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ===== LOGIQUE NOCLIP (Fix avec Heartbeat) =====
+-- ===== LOGIQUE NOCLIP =====
 RunService.Heartbeat:Connect(function()
     if _G.Noclip and LocalPlayer.Character then
         for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
@@ -161,7 +175,7 @@ end
 
 -- ===== INTERFACE RAYFIELD =====
 local Window = Rayfield:CreateWindow({
-    Name = "Bread Hub | Prison Life V3",
+    Name = "Bread Hub | Prison Life V4",
     LoadingTitle = "Chargement du Hub...",
     LoadingSubtitle = "by Bread",
     ConfigurationSaving = { Enabled = false },
@@ -169,10 +183,10 @@ local Window = Rayfield:CreateWindow({
 })
 
 local CombatTab = Window:CreateTab("Combat", 4483362458)
-CombatTab:CreateSection("Assistance de visée (Ennemis uniquement)")
+CombatTab:CreateSection("Assistance de visée (Max 100 Studs)")
 
 CombatTab:CreateToggle({
-    Name = "Silent Aim (Tire à travers les murs)",
+    Name = "Silent Aim",
     CurrentValue = false,
     Flag = "SilentAimToggle",
     Callback = function(Value) _G.SilentAim = Value end
@@ -227,7 +241,7 @@ PlayerTab:CreateToggle({
 })
 
 PlayerTab:CreateToggle({
-    Name = "Infinite Jump (Saut Infini)",
+    Name = "Infinite Jump",
     CurrentValue = false,
     Flag = "InfJumpToggle",
     Callback = function(Value) _G.InfJump = Value end
@@ -278,8 +292,8 @@ VisualTab:CreateToggle({
 })
 
 Rayfield:Notify({
-    Title = "Bread Hub V3",
-    Content = "Script fixé ! Tu peux tirer normalement.",
+    Title = "Bread Hub V4",
+    Content = "Limite de 100 studs activée !",
     Duration = 5,
     Image = 4483362458,
 })
