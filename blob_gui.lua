@@ -1,4 +1,4 @@
--- Blob GUI (Camera Lock & Velocity) by Bread
+-- Blob GUI (Ultra Scanner) by Bread
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -12,6 +12,7 @@ local GodModeEnabled = false
 local WalkSpeedValue = 100
 
 local FarmVelocity = nil
+local CurrentTarget = nil
 local Connections = {}
 local Highlights = {}
 
@@ -38,7 +39,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -40, 0, 30)
 Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "Bread Blob GUI (V3)"
+Title.Text = "Bread Blob GUI (V4)"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 16
 Title.Font = Enum.Font.GothamBold
@@ -77,7 +78,7 @@ local function createBtn(text, yPos, color)
     return btn
 end
 
-local FarmBtn = createBtn("Auto-Farm (Camera): OFF", 40)
+local FarmBtn = createBtn("Auto-Farm (Ultra): OFF", 40)
 local ESPBtn = createBtn("ESP: OFF", 85)
 local GodBtn = createBtn("God Mode: OFF", 130)
 local SpeedBtn = createBtn("Speed Boost: OFF", 175)
@@ -138,9 +139,41 @@ local ESPConnection = RunService.Heartbeat:Connect(function()
 end)
 table.insert(Connections, ESPConnection)
 
--- ===== LOGIQUE AUTO FARM (CAMERA + VELOCITY) =====
+-- ===== LOGIQUE AUTO FARM (ULTRA SCANNER) =====
 local function stopVelocity()
     if FarmVelocity then FarmVelocity:Destroy() FarmVelocity = nil end
+    CurrentTarget = nil
+end
+
+-- Trouver la cible
+local function findTarget()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+
+    local closestDist = math.huge
+    local bestTarget = nil
+
+    -- On scanne ABSOLUMENT TOUT dans le jeu
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        -- On ignore le personnage, le sol, et les dossiers
+        if obj ~= char and not obj:IsDescendantOf(char) and (obj:IsA("Part") or obj:IsA("MeshPart")) then
+            local name = obj.Name:lower()
+            
+            -- On ignore la baseplate et le terrain
+            if name ~= "baseplate" and name ~= "floor" and name ~= "ground" and obj.Transparency < 1 then
+                local dist = (obj.Position - hrp.Position).Magnitude
+                -- On prend le plus proche, peu importe la distance
+                if dist < closestDist then
+                    closestDist = dist
+                    bestTarget = obj
+                end
+            end
+        end
+    end
+
+    return bestTarget, closestDist
 end
 
 local FarmConnection = RunService.Heartbeat:Connect(function()
@@ -155,32 +188,25 @@ local FarmConnection = RunService.Heartbeat:Connect(function()
     local cam = Workspace.CurrentCamera
     if not hrp or not cam then return end
 
-    local targetPos = nil
-    local mySize = 1
-    
-    -- Chercher la cible la plus proche
-    local closestDist = math.huge
-    for _, obj in pairs(Workspace:GetChildren()) do
-        if obj ~= char and (obj:IsA("Part") or obj:IsA("Model")) then
-            local p = obj:IsA("Part") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
-            if p then
-                local dist = (p - hrp.Position).Magnitude
-                if dist < closestDist and dist < 100 then
-                    closestDist = dist
-                    targetPos = p
-                end
-            end
+    -- On cherche la cible toutes les 0.5 secondes pour éviter de lag
+    if tick() % 0.5 < 0.05 or not CurrentTarget or not CurrentTarget.Parent then
+        local target, dist = findTarget()
+        CurrentTarget = target
+        if target then
+            StatusLabel.Text = "Status: Cible à "..math.floor(dist).." studs\n("..target.Name..")"
+        else
+            StatusLabel.Text = "Status: Aucune boule trouvée."
         end
     end
 
-    if targetPos then
-        StatusLabel.Text = "Status: Cible trouvée ("..math.floor(closestDist).." studs)"
+    if CurrentTarget then
+        local targetPos = CurrentTarget.Position
         
-        -- 1. Tourner la caméra vers la cible (Force le jeu à aller dans cette direction)
+        -- 1. Tourner la caméra vers la cible
         local lookAt = CFrame.lookAt(hrp.Position, targetPos)
         cam.CFrame = cam.CFrame:Lerp(lookAt, 0.2) 
         
-        -- 2. Pousser le personnage avec une vélocité
+        -- 2. Pousser le personnage
         if not FarmVelocity then
             FarmVelocity = Instance.new("BodyVelocity")
             FarmVelocity.MaxForce = Vector3.new(1e5, 0, 1e5)
@@ -191,14 +217,11 @@ local FarmConnection = RunService.Heartbeat:Connect(function()
         local dir = (targetPos - hrp.Position).Unit
         FarmVelocity.Velocity = dir * WalkSpeedValue
         
-        -- 3. Simuler l'appui sur la touche "Avancer"
+        -- 3. Forcer le Humanoid à avancer
         local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then
             hum:Move(dir, true)
         end
-    else
-        stopVelocity()
-        StatusLabel.Text = "Status: Rien à manger à proximité (Cherche...)"
     end
 end)
 table.insert(Connections, FarmConnection)
@@ -249,7 +272,7 @@ local function bindToggle(btn, stateBool, onText, offText, callback)
     end)
 end
 
-bindToggle(FarmBtn, function(v) if v ~= nil then AutoFarmEnabled = v; if not v then stopVelocity() end end return AutoFarmEnabled end, "Auto-Farm (Camera): ON", "Auto-Farm (Camera): OFF")
+bindToggle(FarmBtn, function(v) if v ~= nil then AutoFarmEnabled = v; if not v then stopVelocity() end end return AutoFarmEnabled end, "Auto-Farm (Ultra): ON", "Auto-Farm (Ultra): OFF")
 bindToggle(ESPBtn, function(v) if v ~= nil then ESPEnabled = v; if not v then clearESP() end end return ESPEnabled end, "ESP: ON", "ESP: OFF")
 bindToggle(GodBtn, function(v) if v ~= nil then GodModeEnabled = v end return GodModeEnabled end, "God Mode: ON", "God Mode: OFF")
 bindToggle(SpeedBtn, function(v) if v ~= nil then SpeedEnabled = v end return SpeedEnabled end, "Speed Boost: ON", "Speed Boost: OFF", applySpeed)
