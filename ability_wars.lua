@@ -1,5 +1,6 @@
--- Ultimate Ability Wars Hub V4 (Aggressive Kill Aura) by Bread
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+-- Ultimate Ability Wars Hub V5 (Rayfield Backup Link) by Bread
+-- On utilise un lien miroir plus stable pour Rayfield
+local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/Footagesus/Rayfield/main/source.lua'))()
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -23,7 +24,7 @@ local _G = {
     ESP = false,
     SpeedValue = 50,
     HitboxSize = 10,
-    AuraRange = 60 -- Portée augmentée à 60 studs
+    AuraRange = 60
 }
 
 -- ===== 1. HITBOX DES AUTRES =====
@@ -72,7 +73,7 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- ===== 3. KILL AURA (Spam Clic + Portée 60) =====
+-- ===== 3. KILL AURA (Spam Clic + Portée) =====
 local function getClosestEnemy()
     local closestDist = math.huge
     local closestPlayer = nil
@@ -98,14 +99,11 @@ task.spawn(function()
             local target = getClosestEnemy()
             if target then
                 local targetHRP = target.Character.HumanoidRootPart
-                -- On tourne la caméra
                 Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHRP.Position)
-                
-                -- On spam le clic TRÈS vite (comme le Punch Bypass)
                 pcall(function()
                     VirtualUser:CaptureController()
                     VirtualUser:Button1Down(Vector2.new(Mouse.X, Mouse.Y), Camera.CFrame)
-                    task.wait(0.01) -- 0.01 au lieu de 0.05
+                    task.wait(0.01)
                     VirtualUser:Button1Up(Vector2.new(Mouse.X, Mouse.Y), Camera.CFrame)
                 end)
             end
@@ -134,7 +132,7 @@ task.spawn(function()
     end
 end)
 
--- ===== 5. DÉBLOCAGE POUVOIRS (Tentative) =====
+-- ===== 5. DÉBLOCAGE POUVOIRS =====
 local function unlockAllPowers()
     local unlocked = false
     for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
@@ -162,7 +160,7 @@ end
 
 -- ===== INTERFACE RAYFIELD =====
 local Window = Rayfield:CreateWindow({
-    Name = "Bread Hub | Ability Wars V4",
+    Name = "Bread Hub | Ability Wars V5",
     LoadingTitle = "Chargement du Hub...",
     LoadingSubtitle = "by Bread",
     ConfigurationSaving = { Enabled = false },
@@ -198,7 +196,7 @@ CombatTab:CreateToggle({
 
 CombatTab:CreateSlider({
     Name = "Portée de l'Aura",
-    Range = {10, 100}, -- Portée max augmentée
+    Range = {10, 100},
     Increment = 1,
     Suffix = "Studs",
     CurrentValue = 60,
@@ -291,8 +289,8 @@ MiscTab:CreateToggle({
 })
 
 Rayfield:Notify({
-    Title = "Bread Hub V4",
-    Content = "Kill Aura agressif (Portée 60) chargé !",
+    Title = "Bread Hub V5",
+    Content = "Hub chargé avec succès (Lien Miroir) !",
     Duration = 5,
     Image = 4483362458,
 })
