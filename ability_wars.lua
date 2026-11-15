@@ -1,16 +1,6 @@
--- Ultimate Ability Wars Hub V3 (Force Load + Unlock Powers) by Bread
-local success, err = pcall(function()
-    -- Chargement forcé de Rayfield
-    local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-end)
-
-if not success then
-    -- Si Rayfield ne charge pas, on utilise un fallback simple
-    game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Bread", Text = "Erreur Rayfield, utilisation du mode secours.", Duration = 5})
-    -- (Le script continue quand même)
-end
-
+-- Ultimate Ability Wars Hub V4 (Aggressive Kill Aura) by Bread
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -33,7 +23,7 @@ local _G = {
     ESP = false,
     SpeedValue = 50,
     HitboxSize = 10,
-    AuraRange = 20
+    AuraRange = 60 -- Portée augmentée à 60 studs
 }
 
 -- ===== 1. HITBOX DES AUTRES =====
@@ -82,7 +72,7 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- ===== 3. KILL AURA & FARM =====
+-- ===== 3. KILL AURA (Spam Clic + Portée 60) =====
 local function getClosestEnemy()
     local closestDist = math.huge
     local closestPlayer = nil
@@ -102,43 +92,50 @@ local function getClosestEnemy()
     return closestPlayer
 end
 
-RunService.Heartbeat:Connect(function()
-    if _G.KillAura then
-        local target = getClosestEnemy()
-        if target then
-            local targetHRP = target.Character.HumanoidRootPart
-            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHRP.Position)
-            pcall(function()
-                VirtualUser:CaptureController()
-                VirtualUser:Button1Down(Vector2.new(Mouse.X, Mouse.Y), Camera.CFrame)
-                task.wait(0.05)
-                VirtualUser:Button1Up(Vector2.new(Mouse.X, Mouse.Y), Camera.CFrame)
-            end)
-        end
-    end
-end)
-
-RunService.Heartbeat:Connect(function()
-    if _G.AutoFarm and not _G.KillAura then
-        local target = getClosestEnemy()
-        if target then
-            local targetHRP = target.Character.HumanoidRootPart
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-                LocalPlayer.Character.Humanoid:MoveTo(targetHRP.Position)
+task.spawn(function()
+    while task.wait() do
+        if _G.KillAura then
+            local target = getClosestEnemy()
+            if target then
+                local targetHRP = target.Character.HumanoidRootPart
+                -- On tourne la caméra
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHRP.Position)
+                
+                -- On spam le clic TRÈS vite (comme le Punch Bypass)
+                pcall(function()
+                    VirtualUser:CaptureController()
+                    VirtualUser:Button1Down(Vector2.new(Mouse.X, Mouse.Y), Camera.CFrame)
+                    task.wait(0.01) -- 0.01 au lieu de 0.05
+                    VirtualUser:Button1Up(Vector2.new(Mouse.X, Mouse.Y), Camera.CFrame)
+                end)
             end
-            pcall(function()
-                VirtualUser:CaptureController()
-                VirtualUser:Button1Down(Vector2.new(Mouse.X, Mouse.Y), Camera.CFrame)
-                task.wait(0.1)
-                VirtualUser:Button1Up(Vector2.new(Mouse.X, Mouse.Y), Camera.CFrame)
-            end)
         end
     end
 end)
 
--- ===== 4. FORCER LE DÉBLOCAGE DES POUVOIRS =====
+-- ===== 4. AUTO FARM =====
+task.spawn(function()
+    while task.wait(0.1) do
+        if _G.AutoFarm and not _G.KillAura then
+            local target = getClosestEnemy()
+            if target then
+                local targetHRP = target.Character.HumanoidRootPart
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+                    LocalPlayer.Character.Humanoid:MoveTo(targetHRP.Position)
+                end
+                pcall(function()
+                    VirtualUser:CaptureController()
+                    VirtualUser:Button1Down(Vector2.new(Mouse.X, Mouse.Y), Camera.CFrame)
+                    task.wait(0.05)
+                    VirtualUser:Button1Up(Vector2.new(Mouse.X, Mouse.Y), Camera.CFrame)
+                end)
+            end
+        end
+    end
+end)
+
+-- ===== 5. DÉBLOCAGE POUVOIRS (Tentative) =====
 local function unlockAllPowers()
-    -- On cherche tous les RemoteEvents liés aux pouvoirs
     local unlocked = false
     for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
         if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
@@ -156,17 +153,16 @@ local function unlockAllPowers()
             end
         end
     end
-    
     if unlocked then
-        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Bread", Text = "Tentative de déblocage des pouvoirs envoyée !", Duration = 5})
+        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Bread", Text = "Tentative de déblocage envoyée !", Duration = 5})
     else
-        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Bread", Text = "Aucun Remote de pouvoir trouvé (Serveur sécurisé).", Duration = 5})
+        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Bread", Text = "Aucun signal de pouvoir trouvé.", Duration = 5})
     end
 end
 
 -- ===== INTERFACE RAYFIELD =====
 local Window = Rayfield:CreateWindow({
-    Name = "Bread Hub | Ability Wars V3",
+    Name = "Bread Hub | Ability Wars V4",
     LoadingTitle = "Chargement du Hub...",
     LoadingSubtitle = "by Bread",
     ConfigurationSaving = { Enabled = false },
@@ -194,7 +190,7 @@ CombatTab:CreateSlider({
 })
 
 CombatTab:CreateToggle({
-    Name = "Kill Aura",
+    Name = "Kill Aura (Portée Max)",
     CurrentValue = false,
     Flag = "KillAuraToggle",
     Callback = function(Value) _G.KillAura = Value end
@@ -202,10 +198,10 @@ CombatTab:CreateToggle({
 
 CombatTab:CreateSlider({
     Name = "Portée de l'Aura",
-    Range = {10, 50},
+    Range = {10, 100}, -- Portée max augmentée
     Increment = 1,
     Suffix = "Studs",
-    CurrentValue = 20,
+    CurrentValue = 60,
     Flag = "AuraSlider",
     Callback = function(Value) _G.AuraRange = Value end
 })
@@ -272,7 +268,6 @@ MiscTab:CreateToggle({
     Flag = "ESPToggle",
     Callback = function(Value)
         _G.ESP = Value
-        -- Code ESP simplifié pour éviter les crashs
         local function updateESP()
             for _, hl in pairs(Workspace:GetChildren()) do
                 if hl.Name == "BreadESP" then hl:Destroy() end
@@ -296,8 +291,8 @@ MiscTab:CreateToggle({
 })
 
 Rayfield:Notify({
-    Title = "Bread Hub V3",
-    Content = "Script chargé ! Teste le bouton Pouvoirs.",
+    Title = "Bread Hub V4",
+    Content = "Kill Aura agressif (Portée 60) chargé !",
     Duration = 5,
     Image = 4483362458,
 })
