@@ -1,17 +1,17 @@
--- Ultimate Blob Game GUI (Anti-Kick) by Bread
+-- Ultimate Blob Game GUI (Velocity Auto-Farm) by Bread
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
--- Configuration
 local SpeedEnabled = false
 local ESPEnabled = false
 local AutoFarmEnabled = false
 local GodModeEnabled = false
 local WalkSpeedValue = 100
 
+local FarmVelocity = nil
 local Connections = {}
 local Highlights = {}
 
@@ -59,7 +59,6 @@ local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = UDim.new(0, 6)
 CloseCorner.Parent = CloseBtn
 
--- Création des boutons
 local function createBtn(text, yPos, color)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -20, 0, 35)
@@ -78,7 +77,7 @@ local function createBtn(text, yPos, color)
     return btn
 end
 
-local FarmBtn = createBtn("Safe Auto-Farm: OFF", 40)
+local FarmBtn = createBtn("Auto-Farm (Mange): OFF", 40)
 local ESPBtn = createBtn("ESP (Voir Tailles): OFF", 85)
 local GodBtn = createBtn("God Mode: OFF", 130)
 local SpeedBtn = createBtn("Speed Boost: OFF", 175)
@@ -87,7 +86,7 @@ local SpeedLabel = Instance.new("TextLabel")
 SpeedLabel.Size = UDim2.new(1, -20, 0, 20)
 SpeedLabel.Position = UDim2.new(0, 10, 0, 215)
 SpeedLabel.BackgroundTransparency = 1
-SpeedLabel.Text = "Vitesse: 100"
+SpeedLabel.Text = "Vitesse Farm: 100"
 SpeedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 SpeedLabel.TextSize = 13
 SpeedLabel.Font = Enum.Font.Gotham
@@ -109,7 +108,7 @@ local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Size = UDim2.new(1, -20, 0, 60)
 StatusLabel.Position = UDim2.new(0, 10, 0, 265)
 StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "Status: Prêt.\nLes joueurs plus petits sont en VERT.\nLes plus gros sont en ROUGE."
+StatusLabel.Text = "Status: Prêt."
 StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
 StatusLabel.TextSize = 12
 StatusLabel.Font = Enum.Font.Gotham
@@ -117,10 +116,32 @@ StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 StatusLabel.TextWrapped = true
 StatusLabel.Parent = MainFrame
 
--- ===== LOGIQUE DE TAILLE =====
--- Détecte la taille approximative via le personnage
+-- ===== LOGIQUE DE TAILLE AMÉLIORÉE =====
 local function getPlayerSize(character)
     if not character then return 1 end
+    
+    -- 1. Chercher dans les leaderstats (Très courant sur ces jeux)
+    local leaderstats = character:FindFirstChild("leaderstats")
+    if leaderstats then
+        for _, stat in pairs(leaderstats:GetChildren()) do
+            local name = stat.Name:lower()
+            if name:find("size") or name:find("mass") or name:find("level") or name:find("score") then
+                return tonumber(stat.Value) or 1
+            end
+        end
+    end
+    
+    -- 2. Chercher les BodyScales
+    local hum = character:FindFirstChildOfClass("Humanoid")
+    if hum then
+        local scale = 1
+        if hum:FindFirstChild("BodyDepthScale") then scale *= hum.BodyDepthScale.Value end
+        if hum:FindFirstChild("BodyWidthScale") then scale *= hum.BodyWidthScale.Value end
+        if hum:FindFirstChild("BodyHeightScale") then scale *= hum.BodyHeightScale.Value end
+        if scale ~= 1 then return scale * 10 end
+    end
+
+    -- 3. Taille physique par défaut
     local hrp = character:FindFirstChild("HumanoidRootPart")
     if hrp then
         return hrp.Size.X * hrp.Size.Y * hrp.Size.Z
@@ -149,11 +170,10 @@ local function updateESP()
             hl.Adornee = p.Character
             hl.OutlineColor = Color3.fromRGB(255, 255, 255)
             
-            -- Vert si plus petit, Rouge si plus gros
-            if targetSize < mySize then
-                hl.FillColor = Color3.fromRGB(0, 255, 0)
+            if targetSize < mySize * 0.95 then
+                hl.FillColor = Color3.fromRGB(0, 255, 0) -- Vert = Mangeable
             else
-                hl.FillColor = Color3.fromRGB(255, 0, 0)
+                hl.FillColor = Color3.fromRGB(255, 0, 0) -- Rouge = Danger
             end
             
             hl.Parent = ScreenGui
@@ -163,34 +183,28 @@ local function updateESP()
 end
 
 local ESPConnection = RunService.Heartbeat:Connect(function()
-    if ESPEnabled and tick() % 2 < 0.1 then
-        updateESP()
-    end
+    if ESPEnabled and tick() % 2 < 0.1 then updateESP() end
 end)
 table.insert(Connections, ESPConnection)
 
--- ===== LOGIQUE SAFE AUTO FARM (Pas de TP) =====
-local function applySpeed()
-    local char = LocalPlayer.Character
-    if char then
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            if SpeedEnabled or AutoFarmEnabled then
-                hum.WalkSpeed = WalkSpeedValue
-            else
-                hum.WalkSpeed = 16
-            end
-        end
+-- ===== LOGIQUE AUTO FARM (BodyVelocity) =====
+local function stopVelocity()
+    if FarmVelocity then
+        FarmVelocity:Destroy()
+        FarmVelocity = nil
     end
 end
 
 local FarmConnection = RunService.Heartbeat:Connect(function()
-    if not AutoFarmEnabled then return end
+    if not AutoFarmEnabled then 
+        stopVelocity()
+        return 
+    end
+    
     local char = LocalPlayer.Character
     if not char then return end
-    local hum = char:FindFirstChildOfClass("Humanoid")
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hum or not hrp then return end
+    if not hrp then return end
 
     local mySize = getPlayerSize(char)
     local targetPos = nil
@@ -210,36 +224,53 @@ local FarmConnection = RunService.Heartbeat:Connect(function()
         end
     end
 
-    -- 2. Si pas de joueur, chercher les blobs au sol
+    -- 2. Si pas de joueur, chercher la nourriture au sol
     if not targetPos then
+        local closestFood = math.huge
         for _, obj in pairs(Workspace:GetChildren()) do
             if (obj:IsA("Part") or obj:IsA("Model")) and obj ~= char then
-                local name = obj.Name:lower()
-                if name:find("blob") or name:find("food") or name:find("pellet") then
-                    if obj:IsA("Part") then
-                        targetPos = obj.Position
-                    elseif obj:IsA("Model") and obj.PrimaryPart then
-                        targetPos = obj.PrimaryPart.Position
-                    end
-                    if targetPos then
-                        StatusLabel.Text = "Status: Mange un blob..."
-                        break
+                local p = obj:IsA("Part") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
+                if p then
+                    local dist = (p - hrp.Position).Magnitude
+                    if dist < closestFood and dist < 150 then -- Rayon de 150 studs max
+                        closestFood = dist
+                        targetPos = p
                     end
                 end
             end
         end
+        if targetPos then StatusLabel.Text = "Status: Mange la nourriture..." end
     end
 
-    -- 3. Utiliser MoveTo (Glisser vers la cible au lieu de TP)
+    -- 3. Appliquer la vélocité (Le "Tapis roulant")
     if targetPos then
-        hum:MoveTo(targetPos)
+        if not FarmVelocity then
+            FarmVelocity = Instance.new("BodyVelocity")
+            FarmVelocity.MaxForce = Vector3.new(1e5, 0, 1e5) -- Force horizontale uniquement
+            FarmVelocity.P = 5000
+            FarmVelocity.Parent = hrp
+        end
+        
+        local direction = (targetPos - hrp.Position).Unit
+        FarmVelocity.Velocity = direction * WalkSpeedValue
     else
-        StatusLabel.Text = "Status: Aucune cible trouvée."
+        stopVelocity()
+        StatusLabel.Text = "Status: Rien à manger à proximité."
     end
 end)
 table.insert(Connections, FarmConnection)
 
--- ===== LOGIQUE GOD MODE =====
+-- ===== LOGIQUE GOD MODE & SPEED =====
+local function applySpeed()
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.WalkSpeed = SpeedEnabled and WalkSpeedValue or 16
+        end
+    end
+end
+
 local GodConnection = RunService.Heartbeat:Connect(function()
     if GodModeEnabled then
         local char = LocalPlayer.Character
@@ -280,7 +311,7 @@ local function bindToggle(btn, stateBool, onText, offText, callback)
     end)
 end
 
-bindToggle(FarmBtn, function(v) if v ~= nil then AutoFarmEnabled = v end return AutoFarmEnabled end, "Safe Auto-Farm: ON", "Safe Auto-Farm: OFF", applySpeed)
+bindToggle(FarmBtn, function(v) if v ~= nil then AutoFarmEnabled = v; if not v then stopVelocity() end end return AutoFarmEnabled end, "Auto-Farm (Mange): ON", "Auto-Farm (Mange): OFF")
 bindToggle(ESPBtn, function(v) if v ~= nil then ESPEnabled = v; if not v then clearESP() end end return ESPEnabled end, "ESP (Voir Tailles): ON", "ESP (Voir Tailles): OFF")
 bindToggle(GodBtn, function(v) if v ~= nil then GodModeEnabled = v end return GodModeEnabled end, "God Mode: ON", "God Mode: OFF")
 bindToggle(SpeedBtn, function(v) if v ~= nil then SpeedEnabled = v end return SpeedEnabled end, "Speed Boost: ON", "Speed Boost: OFF", applySpeed)
@@ -292,8 +323,8 @@ UserInputService.InputEnded:Connect(function(input) if input.UserInputType == En
 UserInputService.InputChanged:Connect(function(input)
     if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local relX = math.clamp((input.Position.X - SpeedSlider.AbsolutePosition.X) / SpeedSlider.AbsoluteSize.X, 0, 1)
-        WalkSpeedValue = math.floor(relX * 150) + 50
-        SpeedLabel.Text = "Vitesse: " .. WalkSpeedValue
+        WalkSpeedValue = math.floor(relX * 200) + 50
+        SpeedLabel.Text = "Vitesse Farm: " .. WalkSpeedValue
         applySpeed()
     end
 end)
@@ -301,6 +332,7 @@ end)
 LocalPlayer.CharacterAdded:Connect(function()
     task.wait(1)
     applySpeed()
+    stopVelocity()
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
@@ -308,6 +340,7 @@ CloseBtn.MouseButton1Click:Connect(function()
     ESPEnabled = false
     GodModeEnabled = false
     SpeedEnabled = false
+    stopVelocity()
     clearESP()
     for _, conn in pairs(Connections) do
         if conn then conn:Disconnect() end
