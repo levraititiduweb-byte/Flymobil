@@ -1,4 +1,4 @@
--- Ultimate Prison Life Hub V2 (Rayfield) by Bread
+-- Ultimate Prison Life Hub V3 (Fixed) by Bread
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Players = game:GetService("Players")
@@ -49,27 +49,27 @@ local function getClosestPlayer()
     return closestPlayer
 end
 
--- ===== LOGIQUE SILENT AIM (Raycast Hook) =====
--- On intercepte le laser du jeu pour le rediriger vers la tête de l'ennemi
-local oldNamecall
-oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-    local method = getnamecallmethod()
-    local args = {...}
-    
-    if _G.SilentAim and (method == "Raycast" or method == "FindPartOnRay") then
-        local target = getClosestPlayer()
-        if target and target.Character and target.Character:FindFirstChild(_G.TargetPart) then
-            -- On redirige l'origine et la direction du laser vers l'ennemi
-            local targetPos = target.Character[_G.TargetPart].Position
-            if method == "Raycast" then
-                args[2] = (targetPos - args[1].Origin).Unit * 1000 -- Remplace la direction
-            elseif method == "FindPartOnRay" then
-                args[1] = Ray.new(args[1].Origin, (targetPos - args[1].Origin).Unit * 1000)
+-- ===== LOGIQUE SILENT AIM (Fix pour ne pas casser le pistolet) =====
+-- On ne touche plus au Raycast. On hook juste la position de la souris.
+local mt = getrawmetatable(game)
+local oldIndex = mt.__index
+setreadonly(mt, false)
+mt.__index = newcclosure(function(self, key)
+    if _G.SilentAim and self == Mouse then
+        if key == "Hit" or key == "Target" then
+            local target = getClosestPlayer()
+            if target and target.Character and target.Character:FindFirstChild(_G.TargetPart) then
+                if key == "Hit" then
+                    return CFrame.new(target.Character[_G.TargetPart].Position)
+                else
+                    return target.Character[_G.TargetPart]
+                end
             end
         end
     end
-    return oldNamecall(self, unpack(args))
+    return oldIndex(self, key)
 end)
+setreadonly(mt, true)
 
 -- ===== LOGIQUE AIMBOT (Caméra) =====
 RunService.RenderStepped:Connect(function()
@@ -82,21 +82,22 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ===== LOGIQUE NOCLIP & INVISIBLE & FREE CAM =====
-RunService.Stepped:Connect(function()
-    local char = LocalPlayer.Character
-    if not char then return end
-    
-    -- Noclip
-    if _G.Noclip then
-        for _, v in pairs(char:GetDescendants()) do
+-- ===== LOGIQUE NOCLIP (Fix avec Heartbeat) =====
+RunService.Heartbeat:Connect(function()
+    if _G.Noclip and LocalPlayer.Character then
+        for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
             if v:IsA("BasePart") and v.CanCollide then
                 v.CanCollide = false
             end
         end
     end
+end)
+
+-- ===== LOGIQUE INVISIBLE & FREE CAM =====
+RunService.Stepped:Connect(function()
+    local char = LocalPlayer.Character
+    if not char then return end
     
-    -- Invisible (Local)
     if _G.Invisible then
         for _, v in pairs(char:GetDescendants()) do
             if v:IsA("BasePart") or v:IsA("Decal") then
@@ -106,26 +107,25 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Free Cam (Détache la caméra)
 local freeCamConnection
 local function toggleFreeCam(state)
     if state then
         freeCamConnection = RunService.RenderStepped:Connect(function()
             Camera.CameraType = Enum.CameraType.Scriptable
-            local moveDir = Vector3.zero
-            -- Utilise le joystick mobile ou ZQSD pour bouger la caméra
             local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
             if hum then
-                moveDir = hum.MoveDirection
-            end
-            if moveDir.Magnitude > 0 then
-                Camera.CFrame = Camera.CFrame + (moveDir * 2)
+                local moveDir = hum.MoveDirection
+                if moveDir.Magnitude > 0 then
+                    Camera.CFrame = Camera.CFrame + (moveDir * 2)
+                end
             end
         end)
     else
         if freeCamConnection then freeCamConnection:Disconnect() end
         Camera.CameraType = Enum.CameraType.Custom
-        Camera.CameraSubject = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if LocalPlayer.Character then
+            Camera.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        end
     end
 end
 
@@ -161,19 +161,18 @@ end
 
 -- ===== INTERFACE RAYFIELD =====
 local Window = Rayfield:CreateWindow({
-    Name = "Bread Hub | Prison Life V2",
+    Name = "Bread Hub | Prison Life V3",
     LoadingTitle = "Chargement du Hub...",
     LoadingSubtitle = "by Bread",
     ConfigurationSaving = { Enabled = false },
     KeySystem = false
 })
 
--- Onglet Combat
 local CombatTab = Window:CreateTab("Combat", 4483362458)
 CombatTab:CreateSection("Assistance de visée (Ennemis uniquement)")
 
 CombatTab:CreateToggle({
-    Name = "Silent Aim (Balles à travers les murs)",
+    Name = "Silent Aim (Tire à travers les murs)",
     CurrentValue = false,
     Flag = "SilentAimToggle",
     Callback = function(Value) _G.SilentAim = Value end
@@ -194,7 +193,6 @@ CombatTab:CreateDropdown({
     Callback = function(Option) _G.TargetPart = Option[1] end
 })
 
--- Onglet Joueur
 local PlayerTab = Window:CreateTab("Joueur", 4483362458)
 PlayerTab:CreateSection("Capacités")
 
@@ -250,7 +248,6 @@ PlayerTab:CreateSlider({
     end
 })
 
--- Onglet Visuel
 local VisualTab = Window:CreateTab("Visuel", 4483362458)
 VisualTab:CreateSection("Visualisation & Caméra")
 
@@ -281,8 +278,8 @@ VisualTab:CreateToggle({
 })
 
 Rayfield:Notify({
-    Title = "Bread Hub V2",
-    Content = "Script chargé ! Le Silent Aim et le Free Cam sont prêts.",
+    Title = "Bread Hub V3",
+    Content = "Script fixé ! Tu peux tirer normalement.",
     Duration = 5,
     Image = 4483362458,
 })
