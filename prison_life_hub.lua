@@ -1,4 +1,4 @@
--- Ultimate Prison Life Hub (Rayfield) by Bread
+-- Ultimate Prison Life Hub V2 (Rayfield) by Bread
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Players = game:GetService("Players")
@@ -10,29 +10,35 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
 
--- Variables d'état
 local _G = {
     SilentAim = false,
     Aimbot = false,
     Noclip = false,
+    Invisible = false,
+    InfJump = false,
+    FreeCam = false,
     ESP = false,
     Speed = 16,
     TargetPart = "Head"
 }
 
--- ===== FONCTIONS UTILITAIRES =====
+-- ===== FONCTIONS DE CIBLAGE =====
+local function isEnemy(player)
+    if not player.Team or not LocalPlayer.Team then return true end
+    return player.Team ~= LocalPlayer.Team
+end
+
 local function getClosestPlayer()
     local closestDist = math.huge
     local closestPlayer = nil
     
     for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(_G.TargetPart) then
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(_G.TargetPart) and isEnemy(p) then
             local targetPart = p.Character[_G.TargetPart]
             local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
             
             if onScreen then
                 local dist = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
-                -- On cherche la cible la plus proche du curseur (dans un rayon de 300 pixels)
                 if dist < closestDist and dist < 300 then
                     closestDist = dist
                     closestPlayer = p
@@ -43,26 +49,26 @@ local function getClosestPlayer()
     return closestPlayer
 end
 
--- ===== LOGIQUE SILENT AIM =====
--- On hook la métaméthode de la souris pour rediriger la position "Hit" vers la tête du joueur
-local oldIndex
-pcall(function()
-    oldIndex = hookmetamethod(game, "__index", function(self, key)
-        if _G.SilentAim and self == Mouse then
-            if key == "Hit" or key == "Target" then
-                local target = getClosestPlayer()
-                if target and target.Character and target.Character:FindFirstChild(_G.TargetPart) then
-                    local targetPos = target.Character[_G.TargetPart].Position
-                    if key == "Hit" then
-                        return CFrame.new(targetPos)
-                    elseif key == "Target" then
-                        return target.Character[_G.TargetPart]
-                    end
-                end
+-- ===== LOGIQUE SILENT AIM (Raycast Hook) =====
+-- On intercepte le laser du jeu pour le rediriger vers la tête de l'ennemi
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+    
+    if _G.SilentAim and (method == "Raycast" or method == "FindPartOnRay") then
+        local target = getClosestPlayer()
+        if target and target.Character and target.Character:FindFirstChild(_G.TargetPart) then
+            -- On redirige l'origine et la direction du laser vers l'ennemi
+            local targetPos = target.Character[_G.TargetPart].Position
+            if method == "Raycast" then
+                args[2] = (targetPos - args[1].Origin).Unit * 1000 -- Remplace la direction
+            elseif method == "FindPartOnRay" then
+                args[1] = Ray.new(args[1].Origin, (targetPos - args[1].Origin).Unit * 1000)
             end
         end
-        return oldIndex(self, key)
-    end)
+    end
+    return oldNamecall(self, unpack(args))
 end)
 
 -- ===== LOGIQUE AIMBOT (Caméra) =====
@@ -71,19 +77,64 @@ RunService.RenderStepped:Connect(function()
         local target = getClosestPlayer()
         if target and target.Character and target.Character:FindFirstChild(_G.TargetPart) then
             local targetPos = target.Character[_G.TargetPart].Position
-            -- On smooth la caméra vers la cible
             Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPos), 0.2)
         end
     end
 end)
 
--- ===== LOGIQUE NOCLIP =====
+-- ===== LOGIQUE NOCLIP & INVISIBLE & FREE CAM =====
 RunService.Stepped:Connect(function()
-    if _G.Noclip and LocalPlayer.Character then
-        for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
+    local char = LocalPlayer.Character
+    if not char then return end
+    
+    -- Noclip
+    if _G.Noclip then
+        for _, v in pairs(char:GetDescendants()) do
             if v:IsA("BasePart") and v.CanCollide then
                 v.CanCollide = false
             end
+        end
+    end
+    
+    -- Invisible (Local)
+    if _G.Invisible then
+        for _, v in pairs(char:GetDescendants()) do
+            if v:IsA("BasePart") or v:IsA("Decal") then
+                v.LocalTransparencyModifier = 1
+            end
+        end
+    end
+end)
+
+-- Free Cam (Détache la caméra)
+local freeCamConnection
+local function toggleFreeCam(state)
+    if state then
+        freeCamConnection = RunService.RenderStepped:Connect(function()
+            Camera.CameraType = Enum.CameraType.Scriptable
+            local moveDir = Vector3.zero
+            -- Utilise le joystick mobile ou ZQSD pour bouger la caméra
+            local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then
+                moveDir = hum.MoveDirection
+            end
+            if moveDir.Magnitude > 0 then
+                Camera.CFrame = Camera.CFrame + (moveDir * 2)
+            end
+        end)
+    else
+        if freeCamConnection then freeCamConnection:Disconnect() end
+        Camera.CameraType = Enum.CameraType.Custom
+        Camera.CameraSubject = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    end
+end
+
+-- ===== LOGIQUE INFINITE JUMP =====
+UserInputService.JumpRequest:Connect(function()
+    if _G.InfJump and LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
         end
     end
 end)
@@ -91,13 +142,12 @@ end)
 -- ===== LOGIQUE ESP =====
 local ESPHighlights = {}
 local function updateESP()
-    -- Nettoyage
     for _, hl in pairs(ESPHighlights) do if hl then hl:Destroy() end end
     ESPHighlights = {}
 
     if _G.ESP then
         for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character then
+            if p ~= LocalPlayer and p.Character and isEnemy(p) then
                 local hl = Instance.new("Highlight")
                 hl.Adornee = p.Character
                 hl.FillColor = Color3.fromRGB(255, 0, 0)
@@ -111,7 +161,7 @@ end
 
 -- ===== INTERFACE RAYFIELD =====
 local Window = Rayfield:CreateWindow({
-    Name = "Bread Hub | Prison Life",
+    Name = "Bread Hub | Prison Life V2",
     LoadingTitle = "Chargement du Hub...",
     LoadingSubtitle = "by Bread",
     ConfigurationSaving = { Enabled = false },
@@ -120,24 +170,20 @@ local Window = Rayfield:CreateWindow({
 
 -- Onglet Combat
 local CombatTab = Window:CreateTab("Combat", 4483362458)
-CombatTab:CreateSection("Assistance de visée")
+CombatTab:CreateSection("Assistance de visée (Ennemis uniquement)")
 
 CombatTab:CreateToggle({
-    Name = "Silent Aim (Tire à travers les murs)",
+    Name = "Silent Aim (Balles à travers les murs)",
     CurrentValue = false,
     Flag = "SilentAimToggle",
-    Callback = function(Value)
-        _G.SilentAim = Value
-    end
+    Callback = function(Value) _G.SilentAim = Value end
 })
 
 CombatTab:CreateToggle({
     Name = "Aimbot (Caméra)",
     CurrentValue = false,
     Flag = "AimbotToggle",
-    Callback = function(Value)
-        _G.Aimbot = Value
-    end
+    Callback = function(Value) _G.Aimbot = Value end
 })
 
 CombatTab:CreateDropdown({
@@ -145,25 +191,51 @@ CombatTab:CreateDropdown({
     Options = {"Head", "HumanoidRootPart", "UpperTorso"},
     CurrentOption = {"Head"},
     Flag = "TargetPartDropdown",
-    Callback = function(Option)
-        _G.TargetPart = Option[1]
-    end
+    Callback = function(Option) _G.TargetPart = Option[1] end
 })
 
--- Onglet Mouvement
-local MoveTab = Window:CreateTab("Mouvement", 4483362458)
-MoveTab:CreateSection("Déplacements")
+-- Onglet Joueur
+local PlayerTab = Window:CreateTab("Joueur", 4483362458)
+PlayerTab:CreateSection("Capacités")
 
-MoveTab:CreateToggle({
+PlayerTab:CreateToggle({
     Name = "Noclip (Traverser les murs)",
     CurrentValue = false,
     Flag = "NoclipToggle",
-    Callback = function(Value)
+    Callback = function(Value) 
         _G.Noclip = Value
+        if not Value and LocalPlayer.Character then
+            for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
+                if v:IsA("BasePart") then v.CanCollide = true end
+            end
+        end
     end
 })
 
-MoveTab:CreateSlider({
+PlayerTab:CreateToggle({
+    Name = "Invisible Mode (Local)",
+    CurrentValue = false,
+    Flag = "InvisibleToggle",
+    Callback = function(Value) 
+        _G.Invisible = Value
+        if not Value and LocalPlayer.Character then
+            for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
+                if v:IsA("BasePart") or v:IsA("Decal") then
+                    v.LocalTransparencyModifier = 0
+                end
+            end
+        end
+    end
+})
+
+PlayerTab:CreateToggle({
+    Name = "Infinite Jump (Saut Infini)",
+    CurrentValue = false,
+    Flag = "InfJumpToggle",
+    Callback = function(Value) _G.InfJump = Value end
+})
+
+PlayerTab:CreateSlider({
     Name = "Vitesse de marche",
     Range = {16, 150},
     Increment = 1,
@@ -180,7 +252,7 @@ MoveTab:CreateSlider({
 
 -- Onglet Visuel
 local VisualTab = Window:CreateTab("Visuel", 4483362458)
-VisualTab:CreateSection("ESP")
+VisualTab:CreateSection("Visualisation & Caméra")
 
 VisualTab:CreateToggle({
     Name = "ESP Joueurs (Rouge)",
@@ -189,7 +261,6 @@ VisualTab:CreateToggle({
     Callback = function(Value)
         _G.ESP = Value
         updateESP()
-        -- Mise à jour périodique au cas où de nouveaux joueurs rejoignent
         task.spawn(function()
             while _G.ESP do
                 task.wait(2)
@@ -199,10 +270,19 @@ VisualTab:CreateToggle({
     end
 })
 
--- Message de fin
+VisualTab:CreateToggle({
+    Name = "Free Cam (Caméra détachée)",
+    CurrentValue = false,
+    Flag = "FreeCamToggle",
+    Callback = function(Value)
+        _G.FreeCam = Value
+        toggleFreeCam(Value)
+    end
+})
+
 Rayfield:Notify({
-    Title = "Bread Hub",
-    Content = "Script chargé avec succès !",
+    Title = "Bread Hub V2",
+    Content = "Script chargé ! Le Silent Aim et le Free Cam sont prêts.",
     Duration = 5,
     Image = 4483362458,
 })
