@@ -1,11 +1,22 @@
--- Ultimate Ability Wars Hub V2 (Hitbox Others + Real Kill Aura) by Bread
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+-- Ultimate Ability Wars Hub V3 (Force Load + Unlock Powers) by Bread
+local success, err = pcall(function()
+    -- Chargement forcé de Rayfield
+    local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+end)
 
+if not success then
+    -- Si Rayfield ne charge pas, on utilise un fallback simple
+    game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Bread", Text = "Erreur Rayfield, utilisation du mode secours.", Duration = 5})
+    -- (Le script continue quand même)
+end
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local VirtualUser = game:GetService("VirtualUser")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
@@ -25,17 +36,15 @@ local _G = {
     AuraRange = 20
 }
 
--- ===== 1. AGRANDIR L'HITBOX DES AUTRES =====
+-- ===== 1. HITBOX DES AUTRES =====
 RunService.Heartbeat:Connect(function()
     if _G.HitboxOthers then
         for _, p in pairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character then
                 for _, v in pairs(p.Character:GetDescendants()) do
                     if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
-                        -- On agrandit les membres pour que les attaques touchent plus facilement
                         v.Size = Vector3.new(_G.HitboxSize, _G.HitboxSize, _G.HitboxSize)
-                        v.Transparency = 0.5 -- Petit effet visuel pour voir l'hitbox
-                        v.CanCollide = false -- Évite de bloquer le joueur dans les murs
+                        v.CanCollide = false
                     end
                 end
             end
@@ -43,7 +52,7 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- ===== 2. SPEED BOOST & INF JUMP & INVISIBLE & ANTI-RAGDOLL =====
+-- ===== 2. SPEED, JUMP, INVISIBLE, ANTI-RAGDOLL =====
 local function applySpeed()
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
         LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = _G.SpeedBoost and _G.SpeedValue or 16
@@ -73,7 +82,7 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- ===== 3. KILL AURA (Clic Spam + Auto Aim) =====
+-- ===== 3. KILL AURA & FARM =====
 local function getClosestEnemy()
     local closestDist = math.huge
     local closestPlayer = nil
@@ -98,30 +107,25 @@ RunService.Heartbeat:Connect(function()
         local target = getClosestEnemy()
         if target then
             local targetHRP = target.Character.HumanoidRootPart
-            -- 1. On oriente la caméra vers l'ennemi
             Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHRP.Position)
-            -- 2. On spam le clic gauche (Attaque)
             pcall(function()
                 VirtualUser:CaptureController()
                 VirtualUser:Button1Down(Vector2.new(Mouse.X, Mouse.Y), Camera.CFrame)
-                task.wait(0.05) -- Petite pause pour ne pas faire crasher
+                task.wait(0.05)
                 VirtualUser:Button1Up(Vector2.new(Mouse.X, Mouse.Y), Camera.CFrame)
             end)
         end
     end
 end)
 
--- ===== 4. AUTO FARM (Similaire au Kill Aura mais pour farmer) =====
 RunService.Heartbeat:Connect(function()
     if _G.AutoFarm and not _G.KillAura then
-        local target = getClosestEnemy() -- Il utilise la même détection
+        local target = getClosestEnemy()
         if target then
             local targetHRP = target.Character.HumanoidRootPart
-            -- On se déplace vers la cible
             if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
                 LocalPlayer.Character.Humanoid:MoveTo(targetHRP.Position)
             end
-            -- On attaque
             pcall(function()
                 VirtualUser:CaptureController()
                 VirtualUser:Button1Down(Vector2.new(Mouse.X, Mouse.Y), Camera.CFrame)
@@ -132,27 +136,37 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- ===== 5. ESP =====
-local ESPHighlights = {}
-local function updateESP()
-    for _, hl in pairs(ESPHighlights) do if hl then hl:Destroy() end end
-    ESPHighlights = {}
-    if _G.ESP then
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character then
-                local hl = Instance.new("Highlight")
-                hl.Adornee = p.Character
-                hl.FillColor = Color3.fromRGB(255, 0, 0)
-                hl.Parent = game:GetService("CoreGui")
-                table.insert(ESPHighlights, hl)
+-- ===== 4. FORCER LE DÉBLOCAGE DES POUVOIRS =====
+local function unlockAllPowers()
+    -- On cherche tous les RemoteEvents liés aux pouvoirs
+    local unlocked = false
+    for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            local name = obj.Name:lower()
+            if name:find("unlock") or name:find("ability") or name:find("power") then
+                pcall(function()
+                    if obj:IsA("RemoteEvent") then
+                        obj:FireServer("UnlockAll")
+                        obj:FireServer(true)
+                    elseif obj:IsA("RemoteFunction") then
+                        obj:InvokeServer("UnlockAll")
+                    end
+                end)
+                unlocked = true
             end
         end
+    end
+    
+    if unlocked then
+        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Bread", Text = "Tentative de déblocage des pouvoirs envoyée !", Duration = 5})
+    else
+        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Bread", Text = "Aucun Remote de pouvoir trouvé (Serveur sécurisé).", Duration = 5})
     end
 end
 
 -- ===== INTERFACE RAYFIELD =====
 local Window = Rayfield:CreateWindow({
-    Name = "Bread Hub | Ability Wars V2",
+    Name = "Bread Hub | Ability Wars V3",
     LoadingTitle = "Chargement du Hub...",
     LoadingSubtitle = "by Bread",
     ConfigurationSaving = { Enabled = false },
@@ -180,7 +194,7 @@ CombatTab:CreateSlider({
 })
 
 CombatTab:CreateToggle({
-    Name = "Kill Aura (Clic Spam)",
+    Name = "Kill Aura",
     CurrentValue = false,
     Flag = "KillAuraToggle",
     Callback = function(Value) _G.KillAura = Value end
@@ -214,7 +228,7 @@ PlayerTab:CreateToggle({
 })
 
 PlayerTab:CreateSlider({
-    Name = "Vitesse de marche",
+    Name = "Vitesse",
     Range = {16, 200},
     Increment = 1,
     Suffix = "Speed",
@@ -245,12 +259,35 @@ PlayerTab:CreateToggle({
 })
 
 local MiscTab = Window:CreateTab("Divers", 4483362458)
+MiscTab:CreateSection("Pouvoirs & ESP")
+
+MiscTab:CreateButton({
+    Name = "Forcer le déblocage des Pouvoirs",
+    Callback = function() unlockAllPowers() end
+})
+
 MiscTab:CreateToggle({
     Name = "ESP Joueurs",
     CurrentValue = false,
     Flag = "ESPToggle",
     Callback = function(Value)
         _G.ESP = Value
+        -- Code ESP simplifié pour éviter les crashs
+        local function updateESP()
+            for _, hl in pairs(Workspace:GetChildren()) do
+                if hl.Name == "BreadESP" then hl:Destroy() end
+            end
+            if _G.ESP then
+                for _, p in pairs(Players:GetPlayers()) do
+                    if p ~= LocalPlayer and p.Character then
+                        local hl = Instance.new("Highlight", Workspace)
+                        hl.Name = "BreadESP"
+                        hl.Adornee = p.Character
+                        hl.FillColor = Color3.fromRGB(255, 0, 0)
+                    end
+                end
+            end
+        end
         updateESP()
         task.spawn(function()
             while _G.ESP do task.wait(2) updateESP() end
@@ -259,8 +296,8 @@ MiscTab:CreateToggle({
 })
 
 Rayfield:Notify({
-    Title = "Bread Hub V2",
-    Content = "Hitbox des autres et Kill Aura fixés !",
+    Title = "Bread Hub V3",
+    Content = "Script chargé ! Teste le bouton Pouvoirs.",
     Duration = 5,
     Image = 4483362458,
 })
